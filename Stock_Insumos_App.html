@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock de Insumos - Gestión</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+body{background:#f4f6f9;color:#222;min-height:100vh}
+.topbar{background:linear-gradient(135deg,#0f766e,#0284c7);color:#fff;padding:18px 28px;box-shadow:0 2px 10px rgba(0,0,0,.1);position:sticky;top:0;z-index:50}
+.topbar h1{font-size:22px;font-weight:600}
+.topbar .sub{font-size:13px;opacity:.9;margin-top:2px}
+.tabs{background:#fff;border-bottom:1px solid #e5e7eb;padding:0 20px;display:flex;gap:4px;overflow-x:auto;position:sticky;top:68px;z-index:40}
+.tab{padding:14px 18px;cursor:pointer;border-bottom:3px solid transparent;font-weight:500;color:#555;white-space:nowrap;transition:all .2s}
+.tab:hover{background:#f9fafb}
+.tab.active{color:#0f766e;border-bottom-color:#0f766e;background:#f0fdfa}
+.container{max-width:1400px;margin:0 auto;padding:24px}
+.hidden{display:none!important}
+
+/* KPI Cards */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:24px}
+.kpi{background:#fff;padding:20px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.05);border-left:4px solid #0f766e}
+.kpi.warn{border-left-color:#f59e0b}
+.kpi.danger{border-left-color:#dc2626}
+.kpi.ok{border-left-color:#10b981}
+.kpi .label{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kpi .value{font-size:28px;font-weight:700;color:#111}
+.kpi .sub{font-size:12px;color:#6b7280;margin-top:4px}
+
+/* Sections */
+.section{background:#fff;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.section h2{font-size:16px;margin-bottom:14px;color:#111;display:flex;align-items:center;gap:8px}
+.section h2 .count{background:#0f766e;color:#fff;font-size:12px;padding:2px 9px;border-radius:999px;font-weight:600}
+
+/* Toolbar */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.toolbar input[type=text],.toolbar select{padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff}
+.toolbar input[type=text]{min-width:240px}
+.btn{padding:9px 16px;border:0;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-primary{background:#0f766e;color:#fff}.btn-primary:hover{background:#115e59}
+.btn-secondary{background:#f3f4f6;color:#374151}.btn-secondary:hover{background:#e5e7eb}
+.btn-danger{background:#dc2626;color:#fff}.btn-danger:hover{background:#b91c1c}
+.btn-warn{background:#f59e0b;color:#fff}.btn-warn:hover{background:#d97706}
+.btn-success{background:#10b981;color:#fff}.btn-success:hover{background:#059669}
+.btn-sm{padding:6px 12px;font-size:13px}
+.btn-icon{padding:8px 10px}
+
+/* Gallery */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+.card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:pointer;transition:all .2s;border:2px solid transparent;display:flex;flex-direction:column}
+.card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.1);border-color:#0f766e}
+.card.critical{border-color:#dc2626}
+.card.warn{border-color:#f59e0b}
+.card .img-wrap{background:#f3f4f6;height:160px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.card img{max-width:100%;max-height:100%;object-fit:contain}
+.card .no-img{color:#9ca3af;font-size:48px}
+.card .badge{position:absolute;top:8px;right:8px;background:#dc2626;color:#fff;font-size:11px;padding:3px 8px;border-radius:999px;font-weight:600}
+.card .badge.ok{background:#10b981}
+.card .badge.warn{background:#f59e0b}
+.card .body{padding:12px;flex:1;display:flex;flex-direction:column}
+.card .title{font-size:13px;font-weight:600;line-height:1.3;margin-bottom:6px;color:#111;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
+.card .meta{font-size:11px;color:#6b7280;margin-bottom:4px}
+.card .stock-row{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:8px;border-top:1px solid #f3f4f6}
+.card .stock-val{font-size:18px;font-weight:700;color:#0f766e}
+.card .price{font-size:12px;color:#374151;font-weight:500}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:24px;overflow-y:auto}
+.modal-bg.active{display:flex}
+.modal{background:#fff;border-radius:12px;max-width:720px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.modal-header{padding:18px 22px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:5}
+.modal-header h3{font-size:17px;color:#111}
+.modal-close{cursor:pointer;font-size:24px;color:#6b7280;line-height:1;background:none;border:none}
+.modal-body{padding:22px}
+.modal-foot{padding:16px 22px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+
+/* Form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid.single{grid-template-columns:1fr}
+.form-row{display:flex;flex-direction:column;gap:4px}
+.form-row.full{grid-column:1/-1}
+.form-row label{font-size:12px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:.3px}
+.form-row input,.form-row select,.form-row textarea{padding:9px 11px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-family:inherit;width:100%}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:2px solid #0f766e;outline-offset:-1px;border-color:#0f766e}
+.form-row textarea{resize:vertical;min-height:60px}
+
+.product-detail{display:grid;grid-template-columns:220px 1fr;gap:20px;margin-bottom:18px}
+.product-detail .photo-big{background:#f3f4f6;border-radius:10px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.product-detail .photo-big img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in}
+.product-detail .photo-big .upload-btn{position:absolute;bottom:8px;left:8px;right:8px;background:rgba(255,255,255,.95);padding:6px;text-align:center;font-size:12px;border-radius:6px;cursor:pointer;opacity:0;transition:opacity .15s}
+.product-detail .photo-big:hover .upload-btn{opacity:1}
+.movement-buttons{display:flex;gap:10px;margin-top:14px}
+.history-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+.history-table th,.history-table td{padding:8px 10px;text-align:left;border-bottom:1px solid #f3f4f6}
+.history-table th{background:#f9fafb;color:#374151;font-weight:600;font-size:11px;text-transform:uppercase}
+.history-table .in{color:#059669;font-weight:600}
+.history-table .out{color:#dc2626;font-weight:600}
+.empty-history{text-align:center;color:#9ca3af;padding:20px;font-style:italic;font-size:13px}
+
+/* Tables */
+.data-table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
+.data-table th{background:#f9fafb;padding:10px 12px;text-align:left;font-weight:600;color:#374151;font-size:11px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:2}
+.data-table td{padding:10px 12px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+.data-table tr:hover{background:#f9fafb}
+.mini-img{width:44px;height:44px;object-fit:contain;background:#f3f4f6;border-radius:6px}
+
+/* Alerts & badges */
+.alert{padding:12px 16px;border-radius:8px;margin-bottom:14px;font-size:13px;display:flex;align-items:center;gap:8px}
+.alert-warn{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.alert-danger{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.alert-info{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#f3f4f6;color:#374151}
+.pill.usd{background:#d1fae5;color:#065f46}
+.pill.ars{background:#e0e7ff;color:#3730a3}
+
+/* Photo viewer */
+.photo-viewer{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:200;cursor:zoom-out}
+.photo-viewer.active{display:flex}
+.photo-viewer img{max-width:92vw;max-height:92vh;object-fit:contain}
+
+/* Floating action */
+.fab{position:fixed;bottom:30px;right:30px;width:56px;height:56px;border-radius:50%;background:#0f766e;color:#fff;border:0;font-size:28px;cursor:pointer;box-shadow:0 6px 16px rgba(15,118,110,.4);z-index:30}
+.fab:hover{background:#115e59}
+
+/* Config */
+.config-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.svc-list{display:flex;flex-direction:column;gap:8px}
+.svc-item{display:flex;gap:8px;align-items:center;background:#f9fafb;padding:8px 12px;border-radius:6px}
+.svc-item input{flex:1;border:1px solid #d1d5db;padding:6px 10px;border-radius:6px;font-size:13px}
+
+@media (max-width:700px){
+ .product-detail{grid-template-columns:1fr}
+ .form-grid{grid-template-columns:1fr}
+ .topbar h1{font-size:18px}
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+ <h1>📦 Stock de Insumos — Gestión integral</h1>
+ <div class="sub">Control de entrada/salida por servicio · Dashboard de costos · Pedidos de compra</div>
+</div>
+<div class="tabs">
+ <div class="tab active" data-tab="dashboard">📊 Dashboard</div>
+ <div class="tab" data-tab="stock">📦 Stock (catálogo)</div>
+ <div class="tab" data-tab="movimientos">🔄 Movimientos</div>
+ <div class="tab" data-tab="pedidos">📝 Pedidos</div>
+ <div class="tab" data-tab="config">⚙️ Configuración</div>
+</div>
+<div class="container">
+
+ <!-- DASHBOARD -->
+ <div id="view-dashboard">
+  <div class="kpis" id="kpi-grid"></div>
+  <div class="section">
+   <h2>🚨 Stock crítico <span class="count" id="critical-count">0</span></h2>
+   <div id="critical-list"></div>
+  </div>
+  <div class="section">
+   <h2>💰 Costo total estimado por servicio</h2>
+   <div id="cost-by-service"></div>
+   <div class="alert alert-info" style="margin-top:14px"><strong>Cómo se calcula:</strong> Cuando registras una <strong>SALIDA</strong> hacia un servicio, se suma el costo del insumo a ese servicio. Esto te permite saber cuánto gastó cada área.</div>
+  </div>
+  <div class="section">
+   <h2>🏥 Valor del inventario por equipo médico</h2>
+   <table class="data-table" id="inv-by-equipo"><thead><tr><th>Equipo</th><th>Items</th><th>Stock total</th><th>Valor USD</th><th>Valor ARS</th></tr></thead><tbody></tbody></table>
+  </div>
+ </div>
+
+ <!-- STOCK -->
+ <div id="view-stock" class="hidden">
+  <div class="toolbar">
+   <input type="text" id="search-box" placeholder="🔍 Buscar insumo, equipo, marca, ref o ubicación...">
+   <select id="filter-equipo"><option value="">Todos los equipos</option></select>
+   <select id="filter-stock">
+    <option value="">Todo el stock</option>
+    <option value="critical">Solo stock crítico</option>
+    <option value="zero">Solo sin stock</option>
+    <option value="ok">Solo stock OK</option>
+   </select>
+   <button class="btn btn-primary" onclick="openAddProduct()">➕ Agregar insumo</button>
+   <label class="btn btn-primary" style="cursor:pointer"><input type="file" id="import-xlsx-file" style="display:none" accept=".xlsx,.xls,.csv" onchange="importProductsFromExcel(event)">📥 Importar desde Excel</label>
+   <button class="btn btn-secondary" onclick="downloadImportTemplate()">📄 Plantilla Excel</button>
+   <button class="btn btn-secondary" onclick="exportBackup()">💾 Exportar backup</button>
+   <label class="btn btn-secondary" style="cursor:pointer"><input type="file" id="import-file" style="display:none" accept=".json" onchange="importBackup(event)">📂 Importar backup</label>
+  </div>
+  <div class="gallery" id="gallery"></div>
+ </div>
+
+ <!-- MOVIMIENTOS -->
+ <div id="view-movimientos" class="hidden">
+  <div class="toolbar">
+   <input type="text" id="mov-search" placeholder="🔍 Buscar insumo, responsable, paciente...">
+   <select id="mov-filter-tipo"><option value="">Entradas y salidas</option><option value="IN">Solo entradas</option><option value="OUT">Solo salidas</option></select>
+   <select id="mov-filter-svc"><option value="">Todos los servicios</option></select>
+   <button class="btn btn-secondary" onclick="exportMovimientosCSV()">📄 Exportar CSV</button>
+  </div>
+  <div class="section" style="padding:0">
+   <table class="data-table" id="mov-table">
+    <thead><tr><th>Fecha</th><th>Tipo</th><th>Insumo</th><th>Cant.</th><th>Servicio</th><th>Responsable</th><th>Paciente/Estudio</th><th>Notas</th><th></th></tr></thead>
+    <tbody></tbody>
+   </table>
+  </div>
+ </div>
+
+ <!-- PEDIDOS -->
+ <div id="view-pedidos" class="hidden">
+  <div class="alert alert-info">El sistema sugiere pedidos en base al stock actual vs promedio anual y la "solicitud de compra" registrada. Puedes editar cantidades antes de guardar el pedido.</div>
+  <div class="toolbar">
+   <button class="btn btn-primary" onclick="generarSugerencia()">🔮 Generar sugerencia automática</button>
+   <button class="btn btn-success" onclick="guardarPedido()">💾 Guardar pedido</button>
+   <button class="btn btn-secondary" onclick="limpiarPedido()">🗑️ Limpiar</button>
+   <button class="btn btn-secondary" onclick="imprimirPedido()">🖨️ Imprimir</button>
+  </div>
+  <div class="section" style="padding:0">
+   <table class="data-table" id="pedido-table">
+    <thead><tr><th>Foto</th><th>Insumo</th><th>Stock</th><th>Prom. anual</th><th>Sugerido</th><th>Cant. a pedir</th><th>Precio unit.</th><th>Subtotal USD</th><th>Subtotal ARS</th><th></th></tr></thead>
+    <tbody></tbody>
+    <tfoot><tr style="font-weight:700;background:#f0fdfa"><td colspan="7" style="text-align:right">TOTALES</td><td id="total-usd">USD 0</td><td id="total-ars">ARS 0</td><td></td></tr></tfoot>
+   </table>
+  </div>
+  <div class="section">
+   <h2>📚 Historial de pedidos guardados</h2>
+   <div id="pedidos-historial"></div>
+  </div>
+ </div>
+
+ <!-- CONFIG -->
+ <div id="view-config" class="hidden">
+  <div class="config-grid">
+   <div class="section">
+    <h2>💵 Tipo de cambio</h2>
+    <div class="form-row">
+     <label>ARS por 1 USD</label>
+     <input type="number" id="cfg-fx" step="1" onchange="saveConfig()">
+    </div>
+    <p style="font-size:12px;color:#6b7280;margin-top:6px">Se usa para convertir precios en el dashboard y pedidos.</p>
+   </div>
+   <div class="section">
+    <h2>🏥 Servicios</h2>
+    <div class="svc-list" id="svc-list"></div>
+    <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="agregarServicio()">➕ Agregar servicio</button>
+   </div>
+   <div class="section">
+    <h2>⚠️ Umbral de stock crítico</h2>
+    <div class="form-row">
+     <label>% del promedio anual (por debajo se considera crítico)</label>
+     <input type="number" id="cfg-threshold" step="5" min="0" max="100" onchange="saveConfig()">
+    </div>
+   </div>
+   <div class="section">
+    <h2>🔢 Reiniciar contadores</h2>
+    <p style="font-size:13px;color:#374151;margin-bottom:12px">Elige qué poner a cero cuando comiences a cargar el stock real. <strong>Conserva el catálogo completo</strong> (insumos, fotos, precios, servicios).</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+     <button class="btn btn-warn" onclick="resetStockZero()">0️⃣ Poner TODO el stock en 0</button>
+     <button class="btn btn-warn" onclick="resetMovimientos()">🔄 Borrar todos los movimientos</button>
+     <button class="btn btn-warn" onclick="resetPedidos()">📝 Borrar todos los pedidos</button>
+     <hr style="border:0;border-top:1px solid #e5e7eb;margin:6px 0">
+     <button class="btn btn-danger" onclick="resetCountersAll()">🚀 Comenzar de cero (stock=0 + sin movimientos + sin pedidos)</button>
+    </div>
+    <p style="font-size:12px;color:#6b7280;margin-top:12px">💡 Tip: el catálogo (nombres, fotos, precios, servicios) NO se toca. Solo se reinician los contadores.</p>
+   </div>
+   <div class="section">
+    <h2>🛠️ Zona peligrosa (restauración total)</h2>
+    <button class="btn btn-danger" onclick="resetAll()">🔄 Borrar TODO y volver a los 28 insumos originales</button>
+    <p style="font-size:12px;color:#6b7280;margin-top:10px">Esto borra también el catálogo y vuelve al estado inicial. Tip: exporta un backup antes.</p>
+   </div>
+  </div>
+ </div>
+</div>
+
+<button class="fab" onclick="openAddProduct()" title="Agregar insumo">＋</button>
+
+<!-- Modals -->
+<div class="modal-bg" id="modal-detail"><div class="modal">
+ <div class="modal-header"><h3 id="md-title">Detalle del insumo</h3><button class="modal-close" onclick="closeModal('modal-detail')">×</button></div>
+ <div class="modal-body" id="md-body"></div>
+</div></div>
+
+<div class="modal-bg" id="modal-movement"><div class="modal" style="max-width:500px">
+ <div class="modal-header"><h3 id="mv-title">Registrar movimiento</h3><button class="modal-close" onclick="closeModal('modal-movement')">×</button></div>
+ <div class="modal-body">
+  <div class="form-grid">
+   <div class="form-row full"><label>Insumo</label><input type="text" id="mv-item" disabled></div>
+   <div class="form-row"><label>Tipo</label><input type="text" id="mv-tipo" disabled></div>
+   <div class="form-row"><label>Cantidad</label><input type="number" id="mv-qty" min="1" value="1"></div>
+   <div class="form-row full"><label>Servicio destino</label><select id="mv-svc"></select></div>
+   <div class="form-row full"><label>Responsable</label><input type="text" id="mv-resp" placeholder="Nombre del responsable"></div>
+   <div class="form-row full"><label>N° paciente / estudio</label><input type="text" id="mv-pac" placeholder="Ej: HC 12345 o Est-2026-042"></div>
+   <div class="form-row full"><label>Notas (opcional)</label><textarea id="mv-notas"></textarea></div>
+  </div>
+ </div>
+ <div class="modal-foot">
+  <button class="btn btn-secondary" onclick="closeModal('modal-movement')">Cancelar</button>
+  <button class="btn btn-primary" id="mv-save">Guardar movimiento</button>
+ </div>
+</div></div>
+
+<div class="modal-bg" id="modal-product"><div class="modal">
+ <div class="modal-header"><h3 id="pm-title">Nuevo insumo</h3><button class="modal-close" onclick="closeModal('modal-product')">×</button></div>
+ <div class="modal-body">
+  <div class="product-detail">
+   <div class="photo-big" id="pm-photo-wrap" onclick="document.getElementById('pm-file').click()">
+    <div class="no-img" style="font-size:50px">📷</div>
+    <div class="upload-btn">Subir foto</div>
+   </div>
+   <div>
+    <div class="form-grid">
+     <div class="form-row full"><label>Nombre del insumo *</label><input type="text" id="pm-item"></div>
+     <div class="form-row"><label>Stock inicial</label><input type="number" id="pm-stock" value="0"></div>
+     <div class="form-row"><label>Equipo médico</label><input type="text" id="pm-equipo" list="equipos-list"></div>
+     <div class="form-row"><label>Marca</label><input type="text" id="pm-marca"></div>
+     <div class="form-row"><label>Referencia / código</label><input type="text" id="pm-ref"></div>
+     <div class="form-row full"><label>📍 Ubicación (armario, estante, caja, etc.)</label><input type="text" id="pm-ubicacion" placeholder="Ej: Armario 3 - Estante B - Caja 2"></div>
+     <div class="form-row"><label>URL proveedor (opcional)</label><input type="text" id="pm-url"></div>
+     <div class="form-row"><label>Promedio anual</label><input type="number" id="pm-prom" value="0"></div>
+     <div class="form-row"><label>Moneda</label><select id="pm-moneda"><option value="USD">USD</option><option value="ARS">ARS</option></select></div>
+     <div class="form-row"><label>Precio unitario</label><input type="number" id="pm-precio" step="0.01" value="0"></div>
+     <div class="form-row"><label>Solicitud compra</label><input type="number" id="pm-sol" value="0"></div>
+    </div>
+   </div>
+  </div>
+  <input type="file" id="pm-file" accept="image/*" style="display:none">
+  <datalist id="equipos-list"></datalist>
+ </div>
+ <div class="modal-foot">
+  <button class="btn btn-secondary" onclick="closeModal('modal-product')">Cancelar</button>
+  <button class="btn btn-primary" id="pm-save">Guardar insumo</button>
+ </div>
+</div></div>
+
+<div class="photo-viewer" id="photo-viewer" onclick="this.classList.remove('active')"><img id="photo-viewer-img"></div>
+
+<script>
+// =============== DATOS INICIALES ===============
+const INITIAL_PRODUCTS = [
+ {
+  "id": 1,
+  "item": "Set de 9 Latiguillos para medicion  de 4 canales de EEG",
+  "stock": 1,
+  "equipo": "Monitor Mulpiparametrico MX800 / MX450 (Philips)",
+  "marca": "PHILIPS",
+  "ref": "989803180561",
+  "url": null,
+  "solicitud": 10,
+  "promedio_anual": 5,
+  "precio_original": "USD 686,79",
+  "moneda": "USD",
+  "precio": 686.79,
+  "foto": "fotos_insumos/01_Set_de_9_Latiguillos_para_medicion__de_4.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 2,
+  "item": "Cable Troncal de 4 canales de EEG 9 derivaciones",
+  "stock": 6,
+  "equipo": "Monitor Mulpiparametrico MX800 / MX450 (Philips)",
+  "marca": "PHILIPS",
+  "ref": "9989803180541",
+  "url": null,
+  "solicitud": 0,
+  "promedio_anual": 1,
+  "precio_original": "USD 895,44",
+  "moneda": "USD",
+  "precio": 895.44,
+  "foto": "fotos_insumos/02_Cable_Troncal_de_4_canales_de_EEG_9_deri.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 3,
+  "item": "Cable ECG 3 derivaciones M1672A",
+  "stock": 1,
+  "equipo": "Ecografo",
+  "marca": "PHILIPS",
+  "ref": null,
+  "url": null,
+  "solicitud": 3,
+  "promedio_anual": 3,
+  "precio_original": "USD 177,76",
+  "moneda": "USD",
+  "precio": 177.76,
+  "foto": "fotos_insumos/03_Cable_ECG_3_derivaciones_M1672A.jpeg",
+  "servicios_asignados": []
+ },
+ {
+  "id": 4,
+  "item": "Cable ECG 5 derivaciones M1644A",
+  "stock": 30,
+  "equipo": "Monitor Mulpiparametrico MX800 / MX450 (Philips)",
+  "marca": "PHILIPS",
+  "ref": null,
+  "url": null,
+  "solicitud": 20,
+  "promedio_anual": 15,
+  "precio_original": "USD 260,31",
+  "moneda": "USD",
+  "precio": 260.31,
+  "foto": "fotos_insumos/04_Cable_ECG_5_derivaciones_M1644A.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 5,
+  "item": "Cable ECG troncal de 5 derivaciones M1668A",
+  "stock": 4,
+  "equipo": "Monitor Mulpiparametrico MX800 / MX450 (Philips)",
+  "marca": "PHILIPS",
+  "ref": null,
+  "url": null,
+  "solicitud": 20,
+  "promedio_anual": 10,
+  "precio_original": "USD 271,77",
+  "moneda": "USD",
+  "precio": 271.77,
+  "foto": "fotos_insumos/05_Cable_ECG_troncal_de_5_derivaciones_M166.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 6,
+  "item": "Cable ECG 3 derivaciones M1673A",
+  "stock": 6,
+  "equipo": "Desfibrilador de onda Bifasica Efficia DFM100",
+  "marca": "PHILIPS",
+  "ref": null,
+  "url": null,
+  "solicitud": 5,
+  "promedio_anual": 3,
+  "precio_original": "USD 177,76",
+  "moneda": "USD",
+  "precio": 177.76,
+  "foto": "fotos_insumos/06_Cable_ECG_3_derivaciones_M1673A.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 7,
+  "item": "Cable ECG troncal 3 derivaciones M1669A",
+  "stock": 5,
+  "equipo": "Desfibrilador de onda Bifasica Efficia DFM100",
+  "marca": "PHILIPS",
+  "ref": null,
+  "url": null,
+  "solicitud": 5,
+  "promedio_anual": 3,
+  "precio_original": "USD 212,16",
+  "moneda": "USD",
+  "precio": 212.16,
+  "foto": "fotos_insumos/07_Cable_ECG_troncal_3_derivaciones_M1669A.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 8,
+  "item": "Cable ECG troncal (5+5) (polígrafo) M1949A",
+  "stock": 1,
+  "equipo": "Poligrafo",
+  "marca": "PHILIPS",
+  "ref": null,
+  "url": null,
+  "solicitud": 0,
+  "promedio_anual": 0,
+  "precio_original": null,
+  "moneda": null,
+  "precio": null,
+  "foto": "fotos_insumos/08_Cable_ECG_troncal_55_polgrafo_M194.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 9,
+  "item": "Manguito PNI Adultos M1574A",
+  "stock": 30,
+  "equipo": "Monitor Mulpiparametrico MX800 / MX450 (Philips)",
+  "marca": "PHILIPS",
+  "ref": "989803104171",
+  "url": null,
+  "solicitud": 80,
+  "promedio_anual": 30,
+  "precio_original": "USD 72,29",
+  "moneda": "USD",
+  "precio": 72.29,
+  "foto": "fotos_insumos/09_Manguito_PNI_Adultos_M1574A.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 10,
+  "item": "Manguito PNI Obeso M1576A",
+  "stock": 5,
+  "equipo": "Monitor Mulpiparametrico MX800 / MX450 (Philips)",
+  "marca": "PHILIPS",
+  "ref": null,
+  "url": null,
+  "solicitud": 10,
+  "promedio_anual": 5,
+  "precio_original": "USD 161,71",
+  "moneda": "USD",
+  "precio": 161.71,
+  "foto": "fotos_insumos/10_Manguito_PNI_Obeso_M1576A.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 11,
+  "item": "Sensor de temperatura esofagico - rectal 21075A",
+  "stock": 0,
+  "equipo": "Monitor Mulpiparametrico MX800 / MX450 (Philips)",
+  "marca": "PHILIPS",
+  "ref": null,
+  "url": null,
+  "solicitud": 50,
+  "promedio_anual": 29,
+  "precio_original": "USD 349,73",
+  "moneda": "USD",
+  "precio": 349.73,
+  "foto": "fotos_insumos/11_Sensor_de_temperatura_esofagico_-_rectal.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 12,
+  "item": "Sensor SpO2 - M1191BL",
+  "stock": 15,
+  "equipo": "Monitor Mulpiparametrico MX800 / MX450 (Philips)",
+  "marca": "PHILIPS",
+  "ref": null,
+  "url": null,
+  "solicitud": 10,
+  "promedio_anual": 4,
+  "precio_original": "USD 393,3",
+  "moneda": "USD",
+  "precio": 393.3,
+  "foto": "fotos_insumos/12_Sensor_SpO2_-_M1191BL.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 13,
+  "item": "Set de cable de EEG 90 cm (5 cables)",
+  "stock": 2,
+  "equipo": "Estudio del Sueño / EEG",
+  "marca": "Insumos Hospitalarios | Cardiosistemas SRL",
+  "ref": null,
+  "url": null,
+  "solicitud": 10,
+  "promedio_anual": null,
+  "precio_original": "$8000 C/U APROX.",
+  "moneda": "ARS",
+  "precio": 8000.0,
+  "foto": "fotos_insumos/13_Set_de_cable_de_EEG_90_cm_5_cables.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 14,
+  "item": "Set de Latiguillos  EEG  120CM (5 cables)",
+  "stock": 0,
+  "equipo": "Estudio del Sueño /EEG",
+  "marca": "Insumos Hospitalarios | Cardiosistemas SRL",
+  "ref": null,
+  "url": null,
+  "solicitud": 10,
+  "promedio_anual": 5,
+  "precio_original": "$9500 C/U APROX.",
+  "moneda": "ARS",
+  "precio": 9500.0,
+  "foto": "fotos_insumos/14_Set_de_Latiguillos__EEG__120CM_5_cables.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 15,
+  "item": "Set de Latiguillos EEG  200CM ( 5 cables)",
+  "stock": 0,
+  "equipo": "Estudio del Sueño /EEG",
+  "marca": "Insumos Hospitalarios | Cardiosistemas SRL",
+  "ref": null,
+  "url": null,
+  "solicitud": 10,
+  "promedio_anual": 5,
+  "precio_original": "$15000 C/U APROX.",
+  "moneda": "ARS",
+  "precio": 15000.0,
+  "foto": "fotos_insumos/15_Set_de_Latiguillos_EEG__200CM__5_cables.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 16,
+  "item": "Set de Cable Paciente ECG (7 CABLES) 60CM",
+  "stock": 5,
+  "equipo": "Holter",
+  "marca": "Insumos Hospitalarios | Cardiosistemas SRL",
+  "ref": "D7-60S",
+  "url": null,
+  "solicitud": 10,
+  "promedio_anual": 3,
+  "precio_original": 59900,
+  "moneda": "ARS",
+  "precio": 59900.0,
+  "foto": "fotos_insumos/16_Set_de_Cable_Paciente_ECG_7_CABLES_60C.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 17,
+  "item": "Set de Cable Paciente ECG (5 CABLES) 90CM",
+  "stock": 4,
+  "equipo": "Holter",
+  "marca": "Insumos Hospitalarios | Cardiosistemas SRL",
+  "ref": "D5-90S",
+  "url": null,
+  "solicitud": 10,
+  "promedio_anual": 3,
+  "precio_original": 49900,
+  "moneda": "ARS",
+  "precio": 49900.0,
+  "foto": "fotos_insumos/17_Set_de_Cable_Paciente_ECG_5_CABLES_90C.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 18,
+  "item": "Manguito PNI Adult 11 (25-34cm)",
+  "stock": 39,
+  "equipo": "Tensiometro Digital",
+  "marca": "Welch Allyn",
+  "ref": null,
+  "url": "https://conmil.com.ar/es/store/",
+  "solicitud": 20,
+  "promedio_anual": 30,
+  "precio_original": 106177,
+  "moneda": "ARS",
+  "precio": 106177.0,
+  "foto": "fotos_insumos/18_Manguito_PNI_Adult_11_25-34cm.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 19,
+  "item": "Manguito PNI Obeso Adulto 12 (32-43cm)",
+  "stock": 47,
+  "equipo": "Tensiometro Digital",
+  "marca": "Welch Allyn",
+  "ref": null,
+  "url": "https://conmil.com.ar/es/store/",
+  "solicitud": 0,
+  "promedio_anual": null,
+  "precio_original": 136125,
+  "moneda": "ARS",
+  "precio": 136125.0,
+  "foto": "fotos_insumos/19_Manguito_PNI_Obeso_Adulto_12_32-43cm.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 20,
+  "item": "Manguito PNI M-L (22-42cm)",
+  "stock": 0,
+  "equipo": "Tensiometro Digital",
+  "marca": "Microlife",
+  "ref": null,
+  "url": "https://www.mercadolibre.com.ar/brazal-universal-para-tensiometro-digital-microlife-2242-cm/up/MLAU383417813?pdp_filters=item_id:MLA1803242736#is_advertising=true&searchVariation=MLAU383417813&backend_model=search-backend&position=5&search_layout=grid&type=pad&tracking_id=0460d4a6-80bc-4ec8-b49a-a1b56ff8d01b&ad_domain=VQCATCORE_LST&ad_position=5&ad_click_id=ODM4ODMyN2ItNmQ2My00MmM1LWI4NzItZmFlMDY5YzYyZGM3",
+  "solicitud": 30,
+  "promedio_anual": null,
+  "precio_original": 55211,
+  "moneda": "ARS",
+  "precio": 55211.0,
+  "foto": "fotos_insumos/20_Manguito_PNI_M-L_22-42cm.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 21,
+  "item": "Manguito PNI Obeso L-XL (32-52cm)",
+  "stock": 0,
+  "equipo": "Tensiometro Digital",
+  "marca": "Microlife",
+  "ref": null,
+  "url": "https://www.mercadolibre.com.ar/brazal-mango-obeso-32-a-52-cm-tensiometro-digital-microlife/up/MLAU307445902#polycard_client=search-desktop&search_layout=grid&position=3&type=product&tracking_id=3d0ed5ab-56be-47de-a74f-90d6ce9b7aa9&wid=MLA915164043&sid=search",
+  "solicitud": 5,
+  "promedio_anual": null,
+  "precio_original": 89250,
+  "moneda": "ARS",
+  "precio": 89250.0,
+  "foto": "fotos_insumos/21_Manguito_PNI_Obeso_L-XL_32-52cm.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 22,
+  "item": "cable de ergonometria",
+  "stock": 0,
+  "equipo": "Schiller Sana Bike 1000 ERG 911 PLUS",
+  "marca": "SCHILLER",
+  "ref": "ADAPTADOR FT-1 | Conmil Web",
+  "url": null,
+  "solicitud": 1,
+  "promedio_anual": null,
+  "precio_original": 762000,
+  "moneda": "ARS",
+  "precio": 762000.0,
+  "foto": "fotos_insumos/22_cable_de_ergonometria.jpeg",
+  "servicios_asignados": []
+ },
+ {
+  "id": 23,
+  "item": "Cable paciente para cicloergometro",
+  "stock": 0,
+  "equipo": "Schiller Sana Bike 1000 ERG 911 PLUS",
+  "marca": "SCHILLER",
+  "ref": null,
+  "url": "https://conmil.com.ar/es/producto/cable-paciente-ecg---clip",
+  "solicitud": 1,
+  "promedio_anual": null,
+  "precio_original": 1457445,
+  "moneda": "ARS",
+  "precio": 1457445.0,
+  "foto": "fotos_insumos/23_Cable_paciente_para_cicloergometro.jpeg",
+  "servicios_asignados": []
+ },
+ {
+  "id": 24,
+  "item": "Sensor de posisicon de vertical  1078758",
+  "stock": 2,
+  "equipo": "Alice 6",
+  "marca": "PHILIPS",
+  "ref": "AGIMED",
+  "url": null,
+  "solicitud": 2,
+  "promedio_anual": 2,
+  "precio_original": 491718.6,
+  "moneda": "ARS",
+  "precio": 491718.6,
+  "foto": "fotos_insumos/24_Sensor_de_posisicon_de_vertical__1078758.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 25,
+  "item": "kit Durabelt zRip 1078925/1073622",
+  "stock": 0,
+  "equipo": "Alice 6",
+  "marca": "PHILIPS",
+  "ref": "AGIMED",
+  "url": null,
+  "solicitud": 2,
+  "promedio_anual": 4,
+  "precio_original": 1074496.2,
+  "moneda": "ARS",
+  "precio": 1074496.2,
+  "foto": "fotos_insumos/25_kit_Durabelt_zRip_10789251073622.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 26,
+  "item": "Termisor Oronasal 1078754",
+  "stock": 0,
+  "equipo": "Alice 6",
+  "marca": "PHILIPS",
+  "ref": "AGIMED",
+  "url": null,
+  "solicitud": 4,
+  "promedio_anual": null,
+  "precio_original": null,
+  "moneda": null,
+  "precio": null,
+  "foto": "fotos_insumos/26_Termisor_Oronasal_1078754.png",
+  "servicios_asignados": []
+ },
+ {
+  "id": 27,
+  "item": "Lámpara LED 3,5V 03100 REF 901181",
+  "stock": 8,
+  "equipo": "Otoscopio",
+  "marca": "Welch Allyn",
+  "ref": null,
+  "url": "https://conmil.com.ar/es/store/",
+  "solicitud": 20,
+  "promedio_anual": 10,
+  "precio_original": 280000,
+  "moneda": "ARS",
+  "precio": 280000.0,
+  "foto": "fotos_insumos/27_Lmpara_LED_35V_03100_REF_901181.jpeg",
+  "servicios_asignados": []
+ },
+ {
+  "id": 28,
+  "item": "Lámpara Halógena 3,5V 04900 REF 901181",
+  "stock": 1,
+  "equipo": "Oftalmoscopio",
+  "marca": "Welch Allyn",
+  "ref": null,
+  "url": "https://conmil.com.ar/es/store/",
+  "solicitud": 20,
+  "promedio_anual": 10,
+  "precio_original": 277000,
+  "moneda": "ARS",
+  "precio": 277000.0,
+  "foto": "fotos_insumos/28_Lmpara_Halgena_35V_04900_REF_901181.jpeg",
+  "servicios_asignados": []
+ }
+];
+const INITIAL_SERVICES = ["UTI / Terapia Intensiva", "Laboratorio del Sueño / EEG", "Cardiología / Ergometría", "Consultorios / Emergencias / Quirófano", "Quirófano", "UCO"];
+const DEFAULT_FX = 1200;
+
+// =============== ESTADO (IndexedDB con fallback a localStorage) ===============
+const STORAGE_KEY = 'stock_insumos_v1';
+const IDB_NAME = 'StockInsumosDB';
+const IDB_STORE = 'state';
+let _idb = null;
+
+function _openIDB(){
+ return new Promise((resolve,reject)=>{
+  if(!window.indexedDB){resolve(null);return;}
+  const req = indexedDB.open(IDB_NAME, 1);
+  req.onupgradeneeded = e => {
+   const db = e.target.result;
+   if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+  };
+  req.onsuccess = e => resolve(e.target.result);
+  req.onerror = () => resolve(null);
+ });
+}
+async function _idbGet(key){
+ if(!_idb)return null;
+ return new Promise(res=>{
+  const tx = _idb.transaction(IDB_STORE,'readonly');
+  const req = tx.objectStore(IDB_STORE).get(key);
+  req.onsuccess = ()=>res(req.result||null);
+  req.onerror = ()=>res(null);
+ });
+}
+async function _idbSet(key,val){
+ if(!_idb)return false;
+ return new Promise(res=>{
+  try{
+   const tx = _idb.transaction(IDB_STORE,'readwrite');
+   tx.objectStore(IDB_STORE).put(val,key);
+   tx.oncomplete = ()=>res(true);
+   tx.onerror = ()=>res(false);
+  }catch(e){res(false);}
+ });
+}
+
+function _defaultState(){
+ return {
+  products: INITIAL_PRODUCTS.map(p=>({...p,foto_custom:null})),
+  movements: [],
+  pedidos: [],
+  pedido_draft: [],
+  services: [...INITIAL_SERVICES],
+  config: {fx: DEFAULT_FX, threshold_pct: 20}
+ };
+}
+
+function loadStateSync(){
+ try{
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(raw)return JSON.parse(raw);
+ }catch(e){console.error('load error',e);}
+ return _defaultState();
+}
+
+let state = loadStateSync();
+
+// Inicializar IndexedDB y migrar (async, no bloquea el render inicial)
+(async ()=>{
+ _idb = await _openIDB();
+ if(_idb){
+  const idbState = await _idbGet(STORAGE_KEY);
+  if(idbState){
+   state = idbState;
+   // re-render con datos completos (puede incluir fotos que no cabían en localStorage)
+   try{renderDashboard();renderGallery();}catch(e){}
+  } else {
+   // primera vez: migrar lo que haya en localStorage a IDB
+   await _idbSet(STORAGE_KEY, state);
+  }
+ }
+})();
+
+let _saveQueued = false;
+async function saveState(){
+ // guardar siempre en IndexedDB (sin límite práctico)
+ if(_idb){
+  const ok = await _idbSet(STORAGE_KEY, state);
+  if(!ok)console.warn('IDB save failed');
+ }
+ // intentar también guardar en localStorage una versión liviana (sin fotos custom), como respaldo
+ try{
+  const lite = {
+   ...state,
+   products: state.products.map(p=>({...p, foto_custom: null})) // fotos custom sólo viven en IDB
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(lite));
+ }catch(e){
+  // localStorage lleno: está bien, ya guardamos en IDB
+  if(!_saveQueued){
+   _saveQueued = true;
+   console.info('localStorage lleno, usando IndexedDB como único respaldo.');
+  }
+ }
+}
+
+// Comprimir foto antes de guardarla (evita llenar storage con imágenes de 5MB)
+function compressImage(dataUrl, maxDim=800, quality=0.75){
+ return new Promise(resolve=>{
+  const img = new Image();
+  img.onload = ()=>{
+   let w=img.width, h=img.height;
+   if(w>maxDim || h>maxDim){
+    const ratio = Math.min(maxDim/w, maxDim/h);
+    w = Math.round(w*ratio); h = Math.round(h*ratio);
+   }
+   const canvas = document.createElement('canvas');
+   canvas.width=w; canvas.height=h;
+   const ctx = canvas.getContext('2d');
+   ctx.drawImage(img,0,0,w,h);
+   // JPEG si la imagen es opaca, PNG si puede tener alpha (preservamos si era PNG)
+   const out = canvas.toDataURL('image/jpeg', quality);
+   resolve(out);
+  };
+  img.onerror = ()=>resolve(dataUrl); // si falla, devuelve el original
+  img.src = dataUrl;
+ });
+}
+
+// =============== UTILS ===============
+function $(sel){return document.querySelector(sel);}
+function $$(sel){return document.querySelectorAll(sel);}
+function fmtNum(n,d=0){if(n==null||isNaN(n))return'—';return Number(n).toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function fmtUSD(n){if(n==null||isNaN(n))return'—';return 'USD '+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtARS(n){if(n==null||isNaN(n))return'—';return 'AR$ '+Number(n).toLocaleString('es-AR',{maximumFractionDigits:0});}
+function nowISO(){return new Date().toISOString();}
+function fmtDate(iso){const d=new Date(iso);return d.toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}
+function toUSD(prod){if(prod.precio==null)return 0;return prod.moneda==='USD'?prod.precio:prod.precio/state.config.fx;}
+function toARS(prod){if(prod.precio==null)return 0;return prod.moneda==='ARS'?prod.precio:prod.precio*state.config.fx;}
+function isCritical(p){if(!p.promedio_anual||p.promedio_anual===0)return p.stock===0;return p.stock < p.promedio_anual*(state.config.threshold_pct/100);}
+function photoSrc(p){return p.foto_custom || p.foto || '';}
+
+// =============== TABS ===============
+$$('.tab').forEach(t=>t.addEventListener('click',()=>{
+ $$('.tab').forEach(x=>x.classList.remove('active'));
+ t.classList.add('active');
+ const name=t.dataset.tab;
+ ['dashboard','stock','movimientos','pedidos','config'].forEach(v=>$('#view-'+v).classList.add('hidden'));
+ $('#view-'+name).classList.remove('hidden');
+ if(name==='dashboard')renderDashboard();
+ if(name==='stock')renderGallery();
+ if(name==='movimientos')renderMovimientos();
+ if(name==='pedidos')renderPedido();
+ if(name==='config')renderConfig();
+}));
+
+// =============== DASHBOARD ===============
+function renderDashboard(){
+ const ps=state.products;
+ const totalItems=ps.length;
+ const criticos=ps.filter(isCritical);
+ const sinStock=ps.filter(p=>p.stock===0).length;
+ const totalUSD=ps.reduce((a,p)=>a+toUSD(p)*p.stock,0);
+ const totalARS=ps.reduce((a,p)=>a+toARS(p)*p.stock,0);
+
+ $('#kpi-grid').innerHTML = `
+  <div class="kpi"><div class="label">Insumos totales</div><div class="value">${totalItems}</div></div>
+  <div class="kpi ${criticos.length>0?'danger':'ok'}"><div class="label">Stock crítico</div><div class="value">${criticos.length}</div><div class="sub">${sinStock} sin stock</div></div>
+  <div class="kpi ok"><div class="label">Valor inventario (USD)</div><div class="value">${fmtUSD(totalUSD).replace('USD ','$')}</div><div class="sub">${fmtUSD(totalUSD)}</div></div>
+  <div class="kpi ok"><div class="label">Valor inventario (ARS)</div><div class="value">${fmtARS(totalARS).replace('AR$ ','$')}</div></div>
+  <div class="kpi warn"><div class="label">Movimientos registrados</div><div class="value">${state.movements.length}</div></div>
+  <div class="kpi"><div class="label">Pedidos guardados</div><div class="value">${state.pedidos.length}</div></div>
+ `;
+
+ // Critical list
+ $('#critical-count').textContent=criticos.length;
+ const cl=$('#critical-list');
+ if(criticos.length===0){cl.innerHTML='<p style="color:#6b7280;font-size:13px">✅ Ningún insumo en estado crítico.</p>';}
+ else{
+  cl.innerHTML=`<table class="data-table"><thead><tr><th>Foto</th><th>Insumo</th><th>Equipo</th><th>Stock</th><th>Promedio anual</th><th>Precio</th><th></th></tr></thead><tbody>`+
+   criticos.map(p=>`<tr>
+    <td>${photoSrc(p)?`<img class="mini-img" src="${photoSrc(p)}">`:'<div class="mini-img"></div>'}</td>
+    <td>${escapeHtml(p.item)}</td><td>${escapeHtml(p.equipo||'')}</td>
+    <td><strong style="color:#dc2626">${p.stock}</strong></td>
+    <td>${p.promedio_anual??'—'}</td>
+    <td><span class="pill ${p.moneda==='USD'?'usd':'ars'}">${p.precio_original||'—'}</span></td>
+    <td><button class="btn btn-primary btn-sm" onclick="openDetail(${p.id})">Ver</button></td>
+   </tr>`).join('')+`</tbody></table>`;
+ }
+
+ // Cost by service
+ const bySvc={};
+ state.services.forEach(s=>bySvc[s]={usd:0,ars:0,count:0});
+ state.movements.filter(m=>m.tipo==='OUT').forEach(m=>{
+  const p=state.products.find(x=>x.id===m.product_id);if(!p)return;
+  if(!bySvc[m.servicio])bySvc[m.servicio]={usd:0,ars:0,count:0};
+  bySvc[m.servicio].usd+=toUSD(p)*m.cantidad;
+  bySvc[m.servicio].ars+=toARS(p)*m.cantidad;
+  bySvc[m.servicio].count+=m.cantidad;
+ });
+ const svcRows=Object.entries(bySvc).filter(([s,d])=>d.count>0||state.services.includes(s));
+ if(svcRows.length===0){$('#cost-by-service').innerHTML='<p style="color:#6b7280;font-size:13px">Aún no hay salidas registradas. Registra una SALIDA en el detalle de un insumo.</p>';}
+ else{
+  $('#cost-by-service').innerHTML=`<table class="data-table"><thead><tr><th>Servicio</th><th>Unidades consumidas</th><th>Costo USD</th><th>Costo ARS</th></tr></thead><tbody>`+
+   svcRows.map(([s,d])=>`<tr><td><strong>${escapeHtml(s)}</strong></td><td>${d.count}</td><td>${fmtUSD(d.usd)}</td><td>${fmtARS(d.ars)}</td></tr>`).join('')+`</tbody></table>`;
+ }
+
+ // By equipo
+ const byEq={};
+ ps.forEach(p=>{const k=p.equipo||'(Sin equipo)';if(!byEq[k])byEq[k]={items:0,stock:0,usd:0,ars:0};byEq[k].items++;byEq[k].stock+=p.stock;byEq[k].usd+=toUSD(p)*p.stock;byEq[k].ars+=toARS(p)*p.stock;});
+ const eqRows=Object.entries(byEq).sort((a,b)=>b[1].ars-a[1].ars);
+ $('#inv-by-equipo tbody').innerHTML=eqRows.map(([k,d])=>`<tr><td>${escapeHtml(k)}</td><td>${d.items}</td><td>${d.stock}</td><td>${fmtUSD(d.usd)}</td><td>${fmtARS(d.ars)}</td></tr>`).join('');
+}
+
+// =============== GALLERY ===============
+function renderGallery(){
+ const search=$('#search-box').value.toLowerCase();
+ const feq=$('#filter-equipo').value;
+ const fst=$('#filter-stock').value;
+ // Build equipo filter options
+ const equipos=[...new Set(state.products.map(p=>p.equipo).filter(x=>x))].sort();
+ const sel=$('#filter-equipo');const prev=sel.value;
+ sel.innerHTML='<option value="">Todos los equipos</option>'+equipos.map(e=>`<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
+ sel.value=prev;
+ // Filter
+ let arr=state.products.filter(p=>{
+  if(search && !(p.item.toLowerCase().includes(search)||(p.equipo||'').toLowerCase().includes(search)||(p.marca||'').toLowerCase().includes(search)||(p.ref||'').toLowerCase().includes(search)||(p.ubicacion||'').toLowerCase().includes(search)))return false;
+  if(feq && p.equipo!==feq)return false;
+  if(fst==='critical' && !isCritical(p))return false;
+  if(fst==='zero' && p.stock!==0)return false;
+  if(fst==='ok' && (isCritical(p)||p.stock===0))return false;
+  return true;
+ });
+ // Sort by critical first
+ arr.sort((a,b)=>{const ca=isCritical(a)?0:1,cb=isCritical(b)?0:1;return ca-cb||a.item.localeCompare(b.item);});
+ const g=$('#gallery');
+ if(arr.length===0){g.innerHTML='<p style="color:#6b7280;grid-column:1/-1;text-align:center;padding:40px">Sin resultados.</p>';return;}
+ g.innerHTML=arr.map(p=>{
+  const crit=isCritical(p),zero=p.stock===0;
+  const cls=zero?'card critical':(crit?'card warn':'card');
+  const badge=zero?'<span class="badge">SIN STOCK</span>':(crit?'<span class="badge warn">CRÍTICO</span>':'');
+  const img=photoSrc(p)?`<img src="${photoSrc(p)}" loading="lazy">`:'<div class="no-img">📦</div>';
+  return `<div class="${cls}" onclick="openDetail(${p.id})">
+   <div class="img-wrap">${img}${badge}</div>
+   <div class="body">
+    <div class="title">${escapeHtml(p.item)}</div>
+    <div class="meta">📟 ${escapeHtml(p.equipo||'—')}</div>
+    <div class="meta">🏷️ ${escapeHtml(p.marca||'—')}</div>
+    ${p.ubicacion?`<div class="meta">📍 ${escapeHtml(p.ubicacion)}</div>`:''}
+    <div class="stock-row">
+     <span class="stock-val">${p.stock}</span>
+     <span class="price"><span class="pill ${p.moneda==='USD'?'usd':'ars'}">${p.precio_original||'s/precio'}</span></span>
+    </div>
+   </div>
+  </div>`;
+ }).join('');
+}
+['search-box','filter-equipo','filter-stock'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',renderGallery);});
+
+// =============== DETAIL MODAL ===============
+function openDetail(id){
+ const p=state.products.find(x=>x.id===id);if(!p)return;
+ $('#md-title').textContent=p.item;
+ const hist=state.movements.filter(m=>m.product_id===id).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+ const histHtml = hist.length===0
+  ? '<div class="empty-history">Aún no hay movimientos para este insumo.</div>'
+  : `<table class="history-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Cant.</th><th>Servicio</th><th>Resp.</th><th>Pac/Est</th><th>Notas</th></tr></thead><tbody>`+
+    hist.slice(0,20).map(m=>`<tr><td>${fmtDate(m.fecha)}</td><td class="${m.tipo==='IN'?'in':'out'}">${m.tipo==='IN'?'↓ IN':'↑ OUT'}</td><td>${m.cantidad}</td><td>${escapeHtml(m.servicio||'')}</td><td>${escapeHtml(m.responsable||'')}</td><td>${escapeHtml(m.paciente||'')}</td><td>${escapeHtml(m.notas||'')}</td></tr>`).join('')+
+    `</tbody></table>`;
+ $('#md-body').innerHTML = `
+  <div class="product-detail">
+   <div class="photo-big">${photoSrc(p)?`<img src="${photoSrc(p)}" onclick="openPhoto('${photoSrc(p).replace(/'/g,"\\'")}')">`:'<div class="no-img">📦</div>'}
+    <label for="detail-photo-${id}" class="upload-btn">📷 Cambiar foto</label>
+    <input type="file" id="detail-photo-${id}" accept="image/*" style="display:none" onchange="changePhoto(${id},event)">
+   </div>
+   <div>
+    <div class="form-grid">
+     <div class="form-row full"><label>Nombre</label><input type="text" value="${escapeAttr(p.item)}" onchange="updateField(${id},'item',this.value)"></div>
+     <div class="form-row"><label>Stock actual</label><input type="number" value="${p.stock}" onchange="updateField(${id},'stock',parseInt(this.value)||0)"></div>
+     <div class="form-row"><label>Equipo médico</label><input type="text" value="${escapeAttr(p.equipo||'')}" onchange="updateField(${id},'equipo',this.value)"></div>
+     <div class="form-row"><label>Marca</label><input type="text" value="${escapeAttr(p.marca||'')}" onchange="updateField(${id},'marca',this.value)"></div>
+     <div class="form-row"><label>Referencia</label><input type="text" value="${escapeAttr(p.ref||'')}" onchange="updateField(${id},'ref',this.value)"></div>
+     <div class="form-row full"><label>📍 Ubicación</label><input type="text" value="${escapeAttr(p.ubicacion||'')}" placeholder="Ej: Armario 3 - Estante B - Caja 2" onchange="updateField(${id},'ubicacion',this.value)"></div>
+     <div class="form-row"><label>Promedio anual</label><input type="number" value="${p.promedio_anual||0}" onchange="updateField(${id},'promedio_anual',parseInt(this.value)||0)"></div>
+     <div class="form-row"><label>Solicitud compra</label><input type="number" value="${p.solicitud||0}" onchange="updateField(${id},'solicitud',parseInt(this.value)||0)"></div>
+     <div class="form-row"><label>Moneda</label><select onchange="updateField(${id},'moneda',this.value)"><option value="USD" ${p.moneda==='USD'?'selected':''}>USD</option><option value="ARS" ${p.moneda==='ARS'?'selected':''}>ARS</option></select></div>
+     <div class="form-row"><label>Precio unitario</label><input type="number" step="0.01" value="${p.precio||0}" onchange="updateField(${id},'precio',parseFloat(this.value)||0)"></div>
+     <div class="form-row full"><label>URL proveedor</label><input type="text" value="${escapeAttr(p.url||'')}" onchange="updateField(${id},'url',this.value)"></div>
+    </div>
+    <div class="movement-buttons">
+     <button class="btn btn-success" onclick="openMovement(${id},'IN')">↓ Registrar ENTRADA</button>
+     <button class="btn btn-warn" onclick="openMovement(${id},'OUT')">↑ Registrar SALIDA</button>
+    </div>
+   </div>
+  </div>
+  <h3 style="margin-top:16px;margin-bottom:8px;font-size:15px">📜 Historial de movimientos</h3>
+  ${histHtml}
+  <div style="margin-top:18px;text-align:right">
+   <button class="btn btn-danger btn-sm" onclick="deleteProduct(${id})">🗑️ Eliminar insumo</button>
+  </div>
+ `;
+ openModal('modal-detail');
+}
+
+function updateField(id, field, value){
+ const p=state.products.find(x=>x.id===id);if(!p)return;
+ p[field]=value;
+ if(field==='precio'||field==='moneda'){
+  p.precio_original = (p.moneda||'ARS')==='USD' ? `USD ${p.precio}` : `$${p.precio}`;
+ }
+ saveState();
+}
+
+function changePhoto(id, ev){
+ const f=ev.target.files[0];if(!f)return;
+ const reader=new FileReader();
+ reader.onload=async e=>{
+  const p=state.products.find(x=>x.id===id);if(!p)return;
+  p.foto_custom = await compressImage(e.target.result);
+  await saveState();openDetail(id);renderGallery();
+ };
+ reader.readAsDataURL(f);
+}
+
+function deleteProduct(id){
+ if(!confirm('¿Eliminar este insumo y todos sus movimientos asociados?'))return;
+ state.products=state.products.filter(p=>p.id!==id);
+ state.movements=state.movements.filter(m=>m.product_id!==id);
+ saveState();closeModal('modal-detail');renderGallery();renderDashboard();
+}
+
+// =============== MOVEMENT MODAL ===============
+let movCtx={};
+function openMovement(id,tipo){
+ const p=state.products.find(x=>x.id===id);if(!p)return;
+ movCtx={id,tipo};
+ $('#mv-title').textContent=tipo==='IN'?'↓ Registrar ENTRADA':'↑ Registrar SALIDA';
+ $('#mv-item').value=p.item;
+ $('#mv-tipo').value=tipo==='IN'?'ENTRADA':'SALIDA';
+ $('#mv-qty').value=1;$('#mv-resp').value='';$('#mv-pac').value='';$('#mv-notas').value='';
+ const svcSel=$('#mv-svc');svcSel.innerHTML='<option value="">— Elegir —</option>'+state.services.map(s=>`<option>${escapeHtml(s)}</option>`).join('');
+ openModal('modal-movement');
+}
+$('#mv-save').addEventListener('click',()=>{
+ const qty=parseInt($('#mv-qty').value)||0;if(qty<=0){alert('Cantidad inválida');return;}
+ const svc=$('#mv-svc').value;if(!svc && movCtx.tipo==='OUT'){alert('Selecciona un servicio destino para la salida');return;}
+ const p=state.products.find(x=>x.id===movCtx.id);
+ if(movCtx.tipo==='OUT' && p.stock<qty){if(!confirm(`Stock actual (${p.stock}) menor a cantidad (${qty}). ¿Continuar igual?`))return;}
+ state.movements.push({id:Date.now(),product_id:movCtx.id,tipo:movCtx.tipo,cantidad:qty,servicio:svc,responsable:$('#mv-resp').value,paciente:$('#mv-pac').value,notas:$('#mv-notas').value,fecha:nowISO()});
+ p.stock += movCtx.tipo==='IN'?qty:-qty;
+ saveState();closeModal('modal-movement');openDetail(movCtx.id);renderGallery();renderDashboard();
+});
+
+// =============== ADD PRODUCT ===============
+let pmPhoto=null;
+function openAddProduct(){
+ pmPhoto=null;
+ $('#pm-item').value='';$('#pm-stock').value=0;$('#pm-equipo').value='';$('#pm-marca').value='';$('#pm-ref').value='';$('#pm-ubicacion').value='';$('#pm-url').value='';$('#pm-prom').value=0;$('#pm-precio').value=0;$('#pm-sol').value=0;$('#pm-moneda').value='USD';
+ $('#pm-photo-wrap').innerHTML=`<div class="no-img" style="font-size:50px">📷</div><div class="upload-btn">Subir foto</div>`;
+ const eq=[...new Set(state.products.map(p=>p.equipo).filter(x=>x))].sort();
+ $('#equipos-list').innerHTML=eq.map(e=>`<option>${escapeHtml(e)}</option>`).join('');
+ openModal('modal-product');
+}
+$('#pm-file').addEventListener('change',e=>{
+ const f=e.target.files[0];if(!f)return;
+ const r=new FileReader();r.onload=async ev=>{
+  pmPhoto = await compressImage(ev.target.result);
+  $('#pm-photo-wrap').innerHTML=`<img src="${pmPhoto}"><div class="upload-btn">Cambiar foto</div>`;
+ };r.readAsDataURL(f);
+});
+$('#pm-save').addEventListener('click',()=>{
+ const item=$('#pm-item').value.trim();if(!item){alert('Nombre obligatorio');return;}
+ const m=$('#pm-moneda').value;const pr=parseFloat($('#pm-precio').value)||0;
+ const newId=Math.max(0,...state.products.map(p=>p.id))+1;
+ state.products.push({id:newId,item,stock:parseInt($('#pm-stock').value)||0,equipo:$('#pm-equipo').value,marca:$('#pm-marca').value,ref:$('#pm-ref').value,ubicacion:$('#pm-ubicacion').value,url:$('#pm-url').value,solicitud:parseInt($('#pm-sol').value)||0,promedio_anual:parseInt($('#pm-prom').value)||0,moneda:m,precio:pr,precio_original:m==='USD'?`USD ${pr}`:`$${pr}`,foto:null,foto_custom:pmPhoto,servicios_asignados:[]});
+ saveState();closeModal('modal-product');renderGallery();renderDashboard();
+});
+
+// =============== IMPORT FROM EXCEL (BULK) ===============
+function downloadImportTemplate(){
+ if(typeof XLSX==='undefined'){alert('La librería XLSX no cargó. Verificá tu conexión a internet.');return;}
+ const wb=XLSX.utils.book_new();
+ const rows=[
+  ['Nombre','Referencia','Ubicación','Equipo','Marca','Stock inicial','Moneda','Precio','Promedio anual','URL'],
+  ['Ejemplo: Electrodos ECG adulto','989803166021','Armario 3 - Estante B','Monitor Philips MX800','Philips',0,'USD',25.50,100,''],
+  ['Ejemplo: Sensor SpO2 neonatal','M1192A','Armario 2 - Caja 4','Monitor Philips MX450','Philips',0,'ARS',18000,50,''],
+ ];
+ const ws=XLSX.utils.aoa_to_sheet(rows);
+ ws['!cols']=[{wch:40},{wch:20},{wch:28},{wch:25},{wch:15},{wch:14},{wch:10},{wch:12},{wch:16},{wch:30}];
+ XLSX.utils.book_append_sheet(wb,ws,'Insumos');
+ XLSX.writeFile(wb,'Plantilla_Importar_Insumos.xlsx');
+}
+
+function importProductsFromExcel(e){
+ const f=e.target.files[0];if(!f)return;
+ if(typeof XLSX==='undefined'){alert('La librería XLSX no cargó. Verificá tu conexión a internet.');e.target.value='';return;}
+ const r=new FileReader();
+ r.onload=ev=>{
+  try{
+   const data=new Uint8Array(ev.target.result);
+   const wb=XLSX.read(data,{type:'array'});
+   const sh=wb.Sheets[wb.SheetNames[0]];
+   const rows=XLSX.utils.sheet_to_json(sh,{defval:'',raw:true});
+   if(!rows.length){alert('El archivo está vacío.');e.target.value='';return;}
+
+   // Normalizar claves de cada fila (case-insensitive, sin tildes)
+   const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+   const aliases={
+    nombre:['nombre','item','insumo','producto','descripcion','descripción'],
+    ref:['referencia','codigo','código','ref','cod','sku','part','part number','partnumber','pn'],
+    equipo:['equipo','equipo medico','equipo médico','maquina','máquina'],
+    marca:['marca','fabricante'],
+    stock:['stock','stock inicial','cantidad','existencia'],
+    moneda:['moneda','currency'],
+    precio:['precio','precio unitario','costo','valor','price'],
+    prom:['promedio anual','prom anual','prom','consumo anual','anual'],
+    url:['url','link','enlace'],
+    ubicacion:['ubicacion','ubicación','ubic','localizacion','localización','lugar','armario','estante','posicion','posición','sector']
+   };
+   const pickVal=(row,keys)=>{
+    const rkeys=Object.keys(row);
+    for(const wanted of keys){
+     const hit=rkeys.find(k=>norm(k)===wanted);
+     if(hit && row[hit]!=='' && row[hit]!=null)return row[hit];
+    }
+    return '';
+   };
+
+   let added=0,skipped=0;
+   const startId=Math.max(0,...state.products.map(p=>p.id))+1;
+   const existingNames=new Set(state.products.map(p=>norm(p.item)));
+   const existingRefs=new Set(state.products.map(p=>norm(p.ref)).filter(x=>x));
+
+   rows.forEach(row=>{
+    const nombre=String(pickVal(row,aliases.nombre)).trim();
+    const ref=String(pickVal(row,aliases.ref)).trim();
+    if(!nombre){skipped++;return;}
+    // evitar duplicados por nombre o referencia
+    if(existingNames.has(norm(nombre))){skipped++;return;}
+    if(ref && existingRefs.has(norm(ref))){skipped++;return;}
+
+    const moneda=String(pickVal(row,aliases.moneda)).trim().toUpperCase();
+    const mon=moneda.startsWith('U')?'USD':(moneda.startsWith('A')||moneda.startsWith('$')?'ARS':'USD');
+    const precio=parseFloat(String(pickVal(row,aliases.precio)).replace(',','.'))||0;
+    const stock=parseInt(pickVal(row,aliases.stock))||0;
+    const prom=parseInt(pickVal(row,aliases.prom))||0;
+
+    state.products.push({
+     id:startId+added,
+     item:nombre,
+     stock:stock,
+     equipo:String(pickVal(row,aliases.equipo)).trim(),
+     marca:String(pickVal(row,aliases.marca)).trim(),
+     ref:ref,
+     ubicacion:String(pickVal(row,aliases.ubicacion)).trim(),
+     url:String(pickVal(row,aliases.url)).trim(),
+     solicitud:0,
+     promedio_anual:prom,
+     moneda:mon,
+     precio:precio,
+     precio_original:mon==='USD'?`USD ${precio}`:`$${precio}`,
+     foto:null,
+     foto_custom:null,
+     servicios_asignados:[]
+    });
+    existingNames.add(norm(nombre));
+    if(ref)existingRefs.add(norm(ref));
+    added++;
+   });
+
+   saveState();renderGallery();renderDashboard();
+   alert(`✅ Importación completada.\n\nAgregados: ${added}\nOmitidos (duplicados o sin nombre): ${skipped}\n\nTip: podés editar cada insumo haciendo clic en su tarjeta para cargar foto, precio, servicio, etc.`);
+  }catch(err){
+   console.error(err);
+   alert('❌ Error al leer el Excel: '+err.message+'\n\nAsegurate de que el archivo tenga al menos una columna "Nombre" y opcionalmente "Referencia".');
+  }
+  e.target.value='';
+ };
+ r.readAsArrayBuffer(f);
+}
+
+// =============== MOVIMIENTOS ===============
+function renderMovimientos(){
+ const svcSel=$('#mov-filter-svc');const prev=svcSel.value;
+ svcSel.innerHTML='<option value="">Todos los servicios</option>'+state.services.map(s=>`<option>${escapeHtml(s)}</option>`).join('');
+ svcSel.value=prev;
+ const q=$('#mov-search').value.toLowerCase();const tf=$('#mov-filter-tipo').value;const sf=$('#mov-filter-svc').value;
+ let arr=[...state.movements].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+ if(tf)arr=arr.filter(m=>m.tipo===tf);
+ if(sf)arr=arr.filter(m=>m.servicio===sf);
+ if(q)arr=arr.filter(m=>{const p=state.products.find(x=>x.id===m.product_id);return (p&&p.item.toLowerCase().includes(q))||(m.responsable||'').toLowerCase().includes(q)||(m.paciente||'').toLowerCase().includes(q)||(m.notas||'').toLowerCase().includes(q);});
+ const tb=$('#mov-table tbody');
+ if(arr.length===0){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:30px;color:#6b7280">Sin movimientos registrados aún.</td></tr>';return;}
+ tb.innerHTML=arr.map(m=>{const p=state.products.find(x=>x.id===m.product_id);return `<tr>
+  <td>${fmtDate(m.fecha)}</td>
+  <td class="${m.tipo==='IN'?'in':'out'}" style="${m.tipo==='IN'?'color:#059669':'color:#dc2626'};font-weight:600">${m.tipo==='IN'?'↓ ENTRADA':'↑ SALIDA'}</td>
+  <td>${p?escapeHtml(p.item):'[eliminado]'}</td>
+  <td><strong>${m.cantidad}</strong></td>
+  <td>${escapeHtml(m.servicio||'—')}</td>
+  <td>${escapeHtml(m.responsable||'—')}</td>
+  <td>${escapeHtml(m.paciente||'—')}</td>
+  <td>${escapeHtml(m.notas||'')}</td>
+  <td><button class="btn btn-danger btn-sm" onclick="deleteMovement(${m.id})">Anular</button></td>
+ </tr>`;}).join('');
+}
+['mov-search','mov-filter-tipo','mov-filter-svc'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',renderMovimientos);});
+
+function deleteMovement(mid){
+ if(!confirm('¿Anular este movimiento? Se revertirá el cambio de stock.'))return;
+ const m=state.movements.find(x=>x.id===mid);if(!m)return;
+ const p=state.products.find(x=>x.id===m.product_id);
+ if(p){p.stock += m.tipo==='IN'?-m.cantidad:m.cantidad;}
+ state.movements=state.movements.filter(x=>x.id!==mid);
+ saveState();renderMovimientos();renderDashboard();
+}
+
+function exportMovimientosCSV(){
+ const rows=[['Fecha','Tipo','Insumo','Cantidad','Servicio','Responsable','Paciente/Estudio','Notas','Precio_USD','Subtotal_USD','Precio_ARS','Subtotal_ARS']];
+ state.movements.forEach(m=>{
+  const p=state.products.find(x=>x.id===m.product_id);if(!p)return;
+  const u=toUSD(p),a=toARS(p);
+  rows.push([fmtDate(m.fecha),m.tipo,p.item,m.cantidad,m.servicio,m.responsable,m.paciente,m.notas,u.toFixed(2),(u*m.cantidad).toFixed(2),a.toFixed(0),(a*m.cantidad).toFixed(0)]);
+ });
+ const csv=rows.map(r=>r.map(c=>`"${(c??'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+ const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`movimientos_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+}
+
+// =============== PEDIDOS ===============
+function generarSugerencia(){
+ state.pedido_draft=[];
+ state.products.forEach(p=>{
+  const faltante=Math.max((p.promedio_anual||0)-p.stock, p.solicitud||0);
+  if(faltante>0){
+   state.pedido_draft.push({product_id:p.id, cantidad:faltante});
+  }
+ });
+ saveState();renderPedido();
+}
+function limpiarPedido(){if(!confirm('¿Limpiar el pedido en curso?'))return;state.pedido_draft=[];saveState();renderPedido();}
+function renderPedido(){
+ const tb=$('#pedido-table tbody');let tusd=0,tars=0;
+ if(state.pedido_draft.length===0){
+  tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:30px;color:#6b7280">Sin items. Usa "Generar sugerencia automática" o agrega desde el catálogo.</td></tr>';
+ }else{
+  tb.innerHTML=state.pedido_draft.map((it,idx)=>{
+   const p=state.products.find(x=>x.id===it.product_id);if(!p)return '';
+   const u=toUSD(p),a=toARS(p);
+   const su=u*it.cantidad,sa=a*it.cantidad;tusd+=su;tars+=sa;
+   return `<tr>
+    <td>${photoSrc(p)?`<img class="mini-img" src="${photoSrc(p)}">`:''}</td>
+    <td>${escapeHtml(p.item)}<br><small style="color:#6b7280">${escapeHtml(p.equipo||'')} · ${escapeHtml(p.marca||'')}</small></td>
+    <td>${p.stock}</td>
+    <td>${p.promedio_anual||'—'}</td>
+    <td style="color:#6b7280">${Math.max((p.promedio_anual||0)-p.stock, p.solicitud||0)||0}</td>
+    <td><input type="number" min="0" value="${it.cantidad}" style="width:80px" onchange="updatePedidoQty(${idx},this.value)"></td>
+    <td><span class="pill ${p.moneda==='USD'?'usd':'ars'}">${p.precio_original||'—'}</span></td>
+    <td>${fmtUSD(su)}</td>
+    <td>${fmtARS(sa)}</td>
+    <td><button class="btn btn-danger btn-sm" onclick="removePedido(${idx})">✕</button></td>
+   </tr>`;
+  }).join('');
+ }
+ $('#total-usd').textContent=fmtUSD(tusd);
+ $('#total-ars').textContent=fmtARS(tars);
+ // Historial
+ const h=$('#pedidos-historial');
+ if(state.pedidos.length===0){h.innerHTML='<p style="color:#6b7280;font-size:13px">Sin pedidos guardados.</p>';}
+ else{
+  h.innerHTML=`<table class="data-table"><thead><tr><th>Fecha</th><th>Items</th><th>Total USD</th><th>Total ARS</th><th></th></tr></thead><tbody>`+
+   state.pedidos.slice().reverse().map(pd=>`<tr><td>${fmtDate(pd.fecha)}</td><td>${pd.items.length}</td><td>${fmtUSD(pd.total_usd)}</td><td>${fmtARS(pd.total_ars)}</td><td><button class="btn btn-secondary btn-sm" onclick='verPedido(${pd.id})'>Ver</button> <button class="btn btn-danger btn-sm" onclick='borrarPedido(${pd.id})'>✕</button></td></tr>`).join('')+`</tbody></table>`;
+ }
+}
+function updatePedidoQty(idx,val){state.pedido_draft[idx].cantidad=parseInt(val)||0;saveState();renderPedido();}
+function removePedido(idx){state.pedido_draft.splice(idx,1);saveState();renderPedido();}
+function guardarPedido(){
+ if(state.pedido_draft.length===0){alert('Pedido vacío');return;}
+ let tu=0,ta=0;
+ const items=state.pedido_draft.map(it=>{const p=state.products.find(x=>x.id===it.product_id);const u=toUSD(p)*it.cantidad,a=toARS(p)*it.cantidad;tu+=u;ta+=a;return{...it,item:p.item,equipo:p.equipo,marca:p.marca,precio_original:p.precio_original,moneda:p.moneda,subtotal_usd:u,subtotal_ars:a};});
+ state.pedidos.push({id:Date.now(),fecha:nowISO(),items,total_usd:tu,total_ars:ta});
+ state.pedido_draft=[];saveState();renderPedido();alert('Pedido guardado ✅');
+}
+function verPedido(id){
+ const pd=state.pedidos.find(x=>x.id===id);if(!pd)return;
+ const html=`<table class="data-table"><thead><tr><th>Insumo</th><th>Cant.</th><th>Precio</th><th>Subtotal USD</th><th>Subtotal ARS</th></tr></thead><tbody>${pd.items.map(it=>`<tr><td>${escapeHtml(it.item)}</td><td>${it.cantidad}</td><td><span class="pill ${it.moneda==='USD'?'usd':'ars'}">${it.precio_original||'—'}</span></td><td>${fmtUSD(it.subtotal_usd)}</td><td>${fmtARS(it.subtotal_ars)}</td></tr>`).join('')}</tbody><tfoot><tr style="font-weight:700"><td colspan="3">Totales</td><td>${fmtUSD(pd.total_usd)}</td><td>${fmtARS(pd.total_ars)}</td></tr></tfoot></table>`;
+ const w=window.open('','_blank');w.document.write(`<html><head><title>Pedido ${fmtDate(pd.fecha)}</title><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}th{background:#f4f6f9}</style></head><body><h1>Pedido de Insumos</h1><p>Fecha: ${fmtDate(pd.fecha)}</p>${html}<button onclick='window.print()'>Imprimir</button></body></html>`);
+}
+function borrarPedido(id){if(!confirm('¿Eliminar pedido guardado?'))return;state.pedidos=state.pedidos.filter(x=>x.id!==id);saveState();renderPedido();}
+function imprimirPedido(){
+ if(state.pedido_draft.length===0){alert('Pedido vacío');return;}
+ let tu=0,ta=0;
+ const rows=state.pedido_draft.map(it=>{const p=state.products.find(x=>x.id===it.product_id);const u=toUSD(p)*it.cantidad,a=toARS(p)*it.cantidad;tu+=u;ta+=a;return `<tr><td>${escapeHtml(p.item)}</td><td>${escapeHtml(p.equipo||'')}</td><td>${escapeHtml(p.marca||'')}</td><td>${it.cantidad}</td><td>${p.precio_original||'—'}</td><td>${fmtUSD(u)}</td><td>${fmtARS(a)}</td></tr>`;}).join('');
+ const w=window.open('','_blank');
+ w.document.write(`<html><head><title>Pedido de insumos</title><style>body{font-family:sans-serif;padding:24px}h1{color:#0f766e}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left;font-size:13px}th{background:#f4f6f9}tfoot tr{font-weight:bold;background:#f0fdfa}</style></head><body><h1>📝 Pedido de Insumos</h1><p>Fecha: ${new Date().toLocaleDateString('es-AR')}</p><table><thead><tr><th>Insumo</th><th>Equipo</th><th>Marca</th><th>Cant.</th><th>Precio</th><th>Subtotal USD</th><th>Subtotal ARS</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="5">TOTAL</td><td>${fmtUSD(tu)}</td><td>${fmtARS(ta)}</td></tr></tfoot></table><button style="margin-top:20px;padding:8px 16px" onclick='window.print()'>🖨️ Imprimir</button></body></html>`);
+}
+
+// =============== CONFIG ===============
+function renderConfig(){
+ $('#cfg-fx').value=state.config.fx;
+ $('#cfg-threshold').value=state.config.threshold_pct;
+ const list=$('#svc-list');
+ list.innerHTML=state.services.map((s,i)=>`<div class="svc-item"><input type="text" value="${escapeAttr(s)}" onchange="updateServicio(${i},this.value)"><button class="btn btn-danger btn-sm" onclick="borrarServicio(${i})">✕</button></div>`).join('');
+}
+function saveConfig(){state.config.fx=parseFloat($('#cfg-fx').value)||state.config.fx;state.config.threshold_pct=parseFloat($('#cfg-threshold').value)||state.config.threshold_pct;saveState();renderDashboard();}
+function agregarServicio(){const n=prompt('Nombre del servicio:');if(!n)return;state.services.push(n);saveState();renderConfig();}
+function borrarServicio(i){if(!confirm('¿Eliminar servicio?'))return;state.services.splice(i,1);saveState();renderConfig();}
+function updateServicio(i,v){state.services[i]=v;saveState();}
+
+function resetStockZero(){
+  if(!confirm('¿Poner TODO el stock en 0?\nSe mantiene el catálogo (insumos, fotos, precios, servicios).\nLos movimientos y pedidos NO se tocan.'))return;
+  state.products.forEach(p=>{p.stock=0;});
+  saveState();renderDashboard();renderGallery();
+  alert('✅ Stock puesto en 0 para los '+state.products.length+' insumos.');
+}
+function resetMovimientos(){
+  if(!confirm('¿Borrar TODOS los movimientos registrados?\nEsta acción no se puede deshacer.\nEl stock actual y el catálogo se mantienen.'))return;
+  state.movements=[];
+  saveState();renderDashboard();
+  if(document.getElementById('mov-tbody'))renderMovimientos();
+  alert('✅ Movimientos borrados.');
+}
+function resetPedidos(){
+  if(!confirm('¿Borrar TODOS los pedidos guardados y el pedido en curso?'))return;
+  state.pedidos=[];state.pedido_draft=[];
+  saveState();
+  if(document.getElementById('pedido-tbody'))renderPedido();
+  alert('✅ Pedidos borrados.');
+}
+function resetCountersAll(){
+  if(!confirm('⚠ ¿COMENZAR DE CERO?\n\n• Stock de todos los insumos = 0\n• Se borran TODOS los movimientos\n• Se borran TODOS los pedidos\n\nEl catálogo (nombres, fotos, precios, servicios, tipo de cambio) se CONSERVA.\n\nTip: exporta un backup antes por las dudas.'))return;
+  state.products.forEach(p=>{p.stock=0;});
+  state.movements=[];state.pedidos=[];state.pedido_draft=[];
+  saveState();renderDashboard();renderGallery();
+  if(document.getElementById('mov-tbody'))renderMovimientos();
+  if(document.getElementById('pedido-tbody'))renderPedido();
+  alert('✅ Todo reiniciado. Catálogo intacto, contadores en 0. Listo para comenzar con el stock real.');
+}
+function resetAll(){
+ if(!confirm('⚠ ¿BORRAR TODO y volver al estado inicial (28 insumos originales)?\nSe perderán movimientos, pedidos y productos agregados.\n\nTip: exporta un backup antes.'))return;
+ localStorage.removeItem(STORAGE_KEY);
+ if(_idb){try{_idb.transaction(IDB_STORE,'readwrite').objectStore(IDB_STORE).delete(STORAGE_KEY);}catch(e){}}
+ state=_defaultState();saveState();renderDashboard();renderGallery();
+ alert('✅ Datos restaurados.');
+}
+
+// =============== EXPORT/IMPORT ===============
+function exportBackup(){
+ const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`stock_backup_${new Date().toISOString().slice(0,10)}.json`;a.click();
+}
+function importBackup(e){
+ const f=e.target.files[0];if(!f)return;
+ if(!confirm('¿Sobrescribir el estado actual con este backup?'))return;
+ const r=new FileReader();r.onload=ev=>{try{state=JSON.parse(ev.target.result);saveState();renderDashboard();renderGallery();alert('✅ Backup restaurado.');}catch(err){alert('Error al leer el backup: '+err.message);}};r.readAsText(f);
+}
+
+// =============== HELPERS ===============
+function openModal(id){$('#'+id).classList.add('active');}
+function closeModal(id){$('#'+id).classList.remove('active');}
+function openPhoto(src){$('#photo-viewer-img').src=src;$('#photo-viewer').classList.add('active');}
+function escapeHtml(s){if(s==null)return '';return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function escapeAttr(s){if(s==null)return '';return String(s).replace(/"/g,'&quot;');}
+
+// Init
+renderDashboard();
+</script>
+</body>
+</html>

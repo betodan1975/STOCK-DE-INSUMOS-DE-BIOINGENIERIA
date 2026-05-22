@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock de Insumos · Dashboard</title>
+<style>
+:root{
+ --bg:#0f172a; --bg-2:#1e293b; --panel:#fff; --soft:#f1f5f9; --border:#e2e8f0;
+ --text:#0f172a; --muted:#64748b; --accent:#6366f1; --accent-2:#4f46e5;
+ --ok:#10b981; --warn:#f59e0b; --danger:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,sans-serif}
+body{background:var(--soft);color:var(--text);min-height:100vh;font-size:14px}
+
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+
+/* Sidebar */
+.side{background:var(--bg);color:#cbd5e1;padding:20px 0;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{padding:0 20px 22px;border-bottom:1px solid #1e293b;margin-bottom:14px}
+.brand h1{font-size:16px;color:#fff;font-weight:700;letter-spacing:-.3px}
+.brand .b-sub{font-size:11px;color:#64748b;margin-top:3px}
+.nav{display:flex;flex-direction:column;gap:2px;padding:0 8px}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 14px;color:#94a3b8;text-decoration:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;transition:all .15s}
+.nav a:hover{background:#1e293b;color:#fff}
+.nav a.active{background:var(--accent);color:#fff}
+.nav .ico{width:18px;text-align:center}
+
+.api-box{margin-top:auto;padding:14px;font-size:11px;color:#94a3b8}
+.api-box .api-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.api-box .api-dot{width:8px;height:8px;border-radius:50%;background:#fbbf24}
+.api-box.ok .api-dot{background:var(--ok)}
+.api-box.err .api-dot{background:var(--danger)}
+.api-box input{background:#1e293b;border:1px solid #334155;color:#cbd5e1;padding:5px 8px;border-radius:6px;font-size:11px;width:100%;margin-top:4px}
+
+/* Main */
+.main{padding:0;display:flex;flex-direction:column;min-height:100vh;overflow:hidden}
+.topbar{padding:16px 28px;background:#fff;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.topbar h2{font-size:18px;font-weight:700}
+.search-wrap{flex:1;max-width:420px;position:relative}
+.search-wrap input{width:100%;padding:9px 14px 9px 36px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:#f8fafc}
+.search-wrap input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent);background:#fff}
+.search-wrap::before{content:'🔍';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.6}
+.btn{padding:9px 14px;border:0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent-2)}
+.btn-secondary{background:#f1f5f9;color:#334155}.btn-secondary:hover{background:#e2e8f0}
+.btn-success{background:var(--ok);color:#fff}.btn-success:hover{background:#059669}
+.btn-danger{background:var(--danger);color:#fff}.btn-danger:hover{background:#dc2626}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-icon{width:28px;height:28px;padding:0;justify-content:center;background:#f1f5f9;color:#475569;border-radius:6px;font-size:14px}
+.btn-icon:hover{background:#e2e8f0}
+
+/* Content area */
+.content{padding:24px 28px;flex:1;overflow:auto}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+.stat{background:#fff;border-radius:12px;padding:18px;border:1px solid var(--border);position:relative;overflow:hidden}
+.stat .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.stat .num{font-size:28px;font-weight:800;margin-top:6px;color:var(--text)}
+.stat .delta{font-size:12px;color:var(--muted);margin-top:4px}
+.stat .ico{position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;background:#eef2ff;color:var(--accent)}
+.stat.ok .ico{background:#d1fae5;color:var(--ok)}
+.stat.warn .ico{background:#fef3c7;color:var(--warn)}
+.stat.danger .ico{background:#fee2e2;color:var(--danger)}
+
+/* Filters bar */
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.chip-group{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:6px 14px;border-radius:999px;font-size:12px;background:#fff;border:1px solid var(--border);cursor:pointer;font-weight:500;color:#475569}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.filters select{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;cursor:pointer}
+
+/* Table */
+.tbl-wrap{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:#f8fafc;padding:12px 14px;text-align:left;font-weight:600;color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+.tbl td{padding:10px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr:hover td{background:#fafbff}
+.tbl tr.selected td{background:#eef2ff}
+
+.thumb{width:40px;height:40px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:18px;color:#94a3b8}
+.thumb img{width:100%;height:100%;object-fit:cover}
+
+.t-name{font-weight:600;color:var(--text);max-width:340px}
+.t-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+.stock-stepper{display:inline-flex;align-items:center;gap:0;background:#f1f5f9;border-radius:8px;padding:2px}
+.stock-stepper button{width:24px;height:24px;border:0;background:#fff;border-radius:6px;cursor:pointer;font-size:14px;color:#475569;display:flex;align-items:center;justify-content:center;font-weight:700;transition:all .1s}
+.stock-stepper button:hover{background:var(--accent);color:#fff}
+.stock-stepper input{width:48px;border:0;background:transparent;text-align:center;font-size:14px;font-weight:700;color:var(--text);outline:none}
+
+.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600}
+.tag-ok{background:#d1fae5;color:#065f46}
+.tag-warn{background:#fef3c7;color:#92400e}
+.tag-danger{background:#fee2e2;color:#991b1b}
+.tag-usd{background:#d1fae5;color:#065f46}
+.tag-ars{background:#e0e7ff;color:#3730a3}
+
+.t-actions{display:flex;gap:4px;justify-content:flex-end}
+
+/* Side panel */
+.panel{position:fixed;right:0;top:0;height:100vh;width:480px;max-width:100vw;background:#fff;box-shadow:-10px 0 30px rgba(15,23,42,.15);transform:translateX(100%);transition:transform .25s ease;z-index:90;display:flex;flex-direction:column}
+.panel.open{transform:translateX(0)}
+.panel-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.panel-head h3{font-size:16px;font-weight:700;line-height:1.3}
+.panel-head .x{cursor:pointer;background:#f1f5f9;border:0;width:32px;height:32px;border-radius:8px;font-size:18px;color:#475569}
+.panel-body{padding:20px 22px;flex:1;overflow-y:auto}
+.panel-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap}
+
+.photo-area{aspect-ratio:1;background:#f1f5f9;border-radius:12px;margin-bottom:18px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;cursor:pointer}
+.photo-area img{width:100%;height:100%;object-fit:contain}
+.photo-area .placeholder{font-size:60px;color:#cbd5e1}
+.photo-area .change{position:absolute;bottom:10px;left:10px;right:10px;background:rgba(15,23,42,.85);color:#fff;text-align:center;padding:8px;border-radius:8px;font-size:12px;font-weight:600;opacity:0;transition:opacity .2s}
+.photo-area:hover .change{opacity:1}
+
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fields .full{grid-column:1/-1}
+.fields label{display:block;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.fields input,.fields select{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff}
+.fields input:focus,.fields select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.4);display:none;z-index:80}
+.overlay.active{display:block}
+
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:12px 22px;border-radius:10px;font-size:13px;z-index:300;box-shadow:0 10px 30px rgba(15,23,42,.3);opacity:0;transition:opacity .2s;font-weight:500}
+.toast.show{opacity:1}
+.toast.ok{background:var(--ok)}
+.toast.err{background:var(--danger)}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-state .em-ico{font-size:48px;opacity:.3;margin-bottom:12px}
+
+@media(max-width:900px){
+ .app{grid-template-columns:1fr}
+ .side{position:static;height:auto;display:flex;flex-direction:row;align-items:center;padding:10px;overflow-x:auto}
+ .brand{border-bottom:0;padding:0 14px;margin:0;flex-shrink:0}
+ .nav{flex-direction:row;gap:4px}
+ .nav a{padding:6px 10px;font-size:12px}
+ .api-box{margin:0 0 0 auto;padding:0 14px}
+ .panel{width:100%}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+ <!-- SIDEBAR -->
+ <aside class="side">
+  <div class="brand">
+   <h1>📦 Stock Insumos</h1>
+   <div class="b-sub">Dashboard · v1.0</div>
+  </div>
+  <nav class="nav">
+   <a class="active" data-view="overview"><span class="ico">📊</span><span>Resumen</span></a>
+   <a data-view="catalog"><span class="ico">📦</span><span>Catálogo</span></a>
+  </nav>
+  <div class="api-box" id="api-box">
+   <div class="api-row"><span class="api-dot"></span><span id="api-text">Conectando…</span></div>
+   <input type="text" id="api-base" value="http://localhost:8000" title="URL base de la API">
+  </div>
+ </aside>
+
+ <!-- MAIN -->
+ <main class="main">
+  <div class="topbar">
+   <h2 id="page-title">Resumen</h2>
+   <div class="search-wrap"><input type="text" id="search" placeholder="Buscar por nombre, marca, referencia, equipo…"></div>
+   <button class="btn btn-primary" onclick="openCreate()">＋ Nuevo insumo</button>
+  </div>
+
+  <div class="content">
+   <!-- OVERVIEW -->
+   <div id="view-overview">
+    <div class="stats" id="stats"></div>
+    <h3 style="font-size:14px;font-weight:700;margin:8px 0 12px;color:#475569">🚨 Necesitan atención</h3>
+    <div class="tbl-wrap">
+     <table class="tbl">
+      <thead><tr><th></th><th>Insumo</th><th>Stock</th><th>Estado</th><th>Equipo</th><th>Promedio anual</th></tr></thead>
+      <tbody id="alert-tbody"></tbody>
+     </table>
+    </div>
+   </div>
+
+   <!-- CATALOG -->
+   <div id="view-catalog" style="display:none">
+    <div class="filters">
+     <div class="chip-group" id="state-chips">
+      <span class="chip active" data-state="">Todos</span>
+      <span class="chip" data-state="ok">Stock OK</span>
+      <span class="chip" data-state="critical">Crítico</span>
+      <span class="chip" data-state="zero">Sin stock</span>
+     </div>
+     <select id="filter-equipo"><option value="">Todos los equipos</option></select>
+     <select id="filter-marca"><option value="">Todas las marcas</option></select>
+     <button class="btn btn-secondary btn-sm" onclick="reload()">🔄 Recargar</button>
+     <span style="margin-left:auto;color:var(--muted);font-size:12px" id="row-count"></span>
+    </div>
+     <div class="tbl-wrap">
+      <table class="tbl">
+       <thead><tr>
+        <th></th><th>Insumo</th><th>Marca</th><th>Stock</th><th>Estado</th><th>Equipo</th><th>Ubicación</th><th>Precio unit.</th><th></th>
+       </tr></thead>
+       <tbody id="catalog-tbody"></tbody>
+      </table>
+     </div>
+   </div>
+  </div>
+ </main>
+</div>
+
+<!-- SIDE PANEL (detalle / edit / new) -->
+<div class="overlay" id="overlay" onclick="closePanel()"></div>
+<aside class="panel" id="panel">
+ <div class="panel-head">
+  <h3 id="p-title">Detalle</h3>
+  <button class="x" onclick="closePanel()">×</button>
+ </div>
+ <div class="panel-body" id="p-body"></div>
+ <div class="panel-foot" id="p-foot"></div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const apiInput = $('api-base');
+let API = (localStorage.getItem('apiBase') || apiInput.value).replace(/\/$/,'');
+apiInput.value = API;
+apiInput.addEventListener('change', () => { API = apiInput.value.replace(/\/$/,''); localStorage.setItem('apiBase', API); checkApi(); reload(); });
+
+let DATA = [], FILTERED = [], CURRENT_VIEW = 'overview', CURRENT_STATE = '';
+
+// API status
+async function checkApi(){
+ const box = $('api-box'), txt = $('api-text');
+ try{ const r = await fetch(API + '/'); if(!r.ok) throw 0; const j = await r.json(); box.classList.add('ok'); box.classList.remove('err'); txt.textContent = `OK · v${j.version||'?'}`; }
+ catch(e){ box.classList.add('err'); box.classList.remove('ok'); txt.textContent = 'API no disponible'; }
+}
+
+// Nav
+document.querySelectorAll('.nav a').forEach(a => a.addEventListener('click', () => {
+ document.querySelectorAll('.nav a').forEach(x => x.classList.remove('active')); a.classList.add('active');
+ CURRENT_VIEW = a.dataset.view;
+ $('view-overview').style.display = CURRENT_VIEW === 'overview' ? 'block' : 'none';
+ $('view-catalog').style.display = CURRENT_VIEW === 'catalog' ? 'block' : 'none';
+ $('page-title').textContent = CURRENT_VIEW === 'overview' ? 'Resumen' : 'Catálogo de insumos';
+ render();
+}));
+
+// Helpers
+const escapeHtml = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fotoUrl = it => it.foto_filename ? `${API}/insumos/${it.id}/foto` : null;
+const isCritical = it => (it.stock === 0) || (it.prom_anual && it.stock <= Math.max(1, Math.round(it.prom_anual * 0.2)));
+function stateOf(it){
+ if(it.stock === 0) return 'zero';
+ if(isCritical(it)) return 'critical';
+ return 'ok';
+}
+function tagFor(it){
+ const s = stateOf(it);
+ if(s === 'zero') return '<span class="tag tag-danger">● Sin stock</span>';
+ if(s === 'critical') return '<span class="tag tag-warn">● Crítico</span>';
+ return '<span class="tag tag-ok">● OK</span>';
+}
+function fmtPrice(it){
+ if(!it.precio_unit_valor) return '<span style="color:var(--muted)">—</span>';
+ const tag = it.moneda === 'USD' ? 'tag-usd' : 'tag-ars';
+ const n = Number(it.precio_unit_valor).toLocaleString('es-AR',{maximumFractionDigits:2});
+ return `<span class="tag ${tag}">${it.moneda || ''} ${n}</span>`;
+}
+function thumb(it){
+ const u = fotoUrl(it);
+ return u
+  ? `<div class="thumb"><img src="${u}" onerror="this.parentNode.innerHTML='📷'"></div>`
+  : `<div class="thumb">📷</div>`;
+}
+function toast(msg, kind=''){ const t=$('toast'); t.textContent=msg; t.className='toast show '+(kind||''); clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'),2400); }
+
+// Load + render
+async function reload(){
+ try{
+  const r = await fetch(API + '/insumos'); if(!r.ok) throw new Error('HTTP '+r.status);
+  DATA = await r.json();
+  populateSelects();
+  render();
+ }catch(e){ toast('No pude cargar: '+e.message, 'err'); }
+}
+
+function populateSelects(){
+ const eqs = [...new Set(DATA.map(x => x.equipo_medico).filter(Boolean))].sort();
+ const mks = [...new Set(DATA.map(x => x.marca).filter(Boolean))].sort();
+ $('filter-equipo').innerHTML = '<option value="">Todos los equipos</option>' + eqs.map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
+ $('filter-marca').innerHTML = '<option value="">Todas las marcas</option>' + mks.map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
+}
+
+function applyFilters(){
+ const q = ($('search').value || '').toLowerCase();
+ const eq = $('filter-equipo').value;
+ const mk = $('filter-marca').value;
+ FILTERED = DATA.filter(it => {
+  if(q && !((it.nombre+' '+(it.marca||'')+' '+(it.referencia||'')+' '+(it.equipo_medico||'')+' '+(it.ubicacion||'')).toLowerCase().includes(q))) return false;
+  if(eq && it.equipo_medico !== eq) return false;
+  if(mk && it.marca !== mk) return false;
+  if(CURRENT_STATE && stateOf(it) !== CURRENT_STATE) return false;
+  return true;
+ });
+}
+
+function render(){
+ applyFilters();
+ if(CURRENT_VIEW === 'overview') renderOverview();
+ else renderCatalog();
+}
+
+function renderOverview(){
+ const total = DATA.length;
+ const sin = DATA.filter(x => x.stock === 0).length;
+ const crit = DATA.filter(x => isCritical(x) && x.stock !== 0).length;
+ const ok = total - sin - crit;
+ const valUSD = DATA.filter(x => x.moneda === 'USD').reduce((s,x)=>s+(x.precio_unit_valor||0)*x.stock,0);
+ const valARS = DATA.filter(x => x.moneda === 'ARS').reduce((s,x)=>s+(x.precio_unit_valor||0)*x.stock,0);
+ $('stats').innerHTML = `
+  <div class="stat"><div class="lbl">Total insumos</div><div class="num">${total}</div><div class="ico">📦</div></div>
+  <div class="stat ok"><div class="lbl">Stock OK</div><div class="num">${ok}</div><div class="ico">✓</div></div>
+  <div class="stat warn"><div class="lbl">Crítico</div><div class="num">${crit}</div><div class="ico">⚠</div></div>
+  <div class="stat danger"><div class="lbl">Sin stock</div><div class="num">${sin}</div><div class="ico">✕</div></div>
+  <div class="stat"><div class="lbl">Valor USD</div><div class="num">$${valUSD.toLocaleString('es-AR',{maximumFractionDigits:0})}</div><div class="delta">Inventario actual</div><div class="ico">💵</div></div>
+  <div class="stat"><div class="lbl">Valor ARS</div><div class="num">$${valARS.toLocaleString('es-AR',{maximumFractionDigits:0})}</div><div class="delta">Inventario actual</div><div class="ico">💰</div></div>
+ `;
+ const alerts = DATA.filter(isCritical).sort((a,b) => a.stock - b.stock);
+ $('alert-tbody').innerHTML = alerts.length ? alerts.map(it => `
+  <tr onclick="openDetail(${it.id})" style="cursor:pointer">
+   <td>${thumb(it)}</td>
+   <td><div class="t-name">${escapeHtml(it.nombre)}</div><div class="t-sub">${escapeHtml(it.marca||'')} ${it.referencia ? '· '+escapeHtml(it.referencia) : ''}</div></td>
+   <td><strong>${it.stock}</strong></td>
+   <td>${tagFor(it)}</td>
+   <td>${escapeHtml(it.equipo_medico||'—')}</td>
+   <td>${it.prom_anual ?? '—'}</td>
+  </tr>
+ `).join('') : '<tr><td colspan="6"><div class="empty-state"><div class="em-ico">🎉</div>No hay insumos en estado crítico.</div></td></tr>';
+}
+
+function renderCatalog(){
+ const items = FILTERED;
+ $('row-count').textContent = `${items.length} de ${DATA.length} insumos`;
+ const tb = $('catalog-tbody');
+ if(!items.length){ tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="em-ico">🔍</div>Sin resultados con esos filtros.</div></td></tr>'; return; }
+ tb.innerHTML = items.map(it => `
+  <tr data-id="${it.id}">
+   <td>${thumb(it)}</td>
+   <td onclick="openDetail(${it.id})" style="cursor:pointer">
+     <div class="t-name">${escapeHtml(it.nombre)}</div>
+     <div class="t-sub">${it.referencia ? 'Ref: '+escapeHtml(it.referencia) : '—'}</div>
+   </td>
+   <td>${escapeHtml(it.marca||'—')}</td>
+   <td>
+    <div class="stock-stepper">
+     <button onclick="bumpStock(${it.id}, -1, event)">−</button>
+     <input type="number" value="${it.stock}" onchange="setStock(${it.id}, this.value, event)" onclick="event.stopPropagation()">
+     <button onclick="bumpStock(${it.id}, 1, event)">+</button>
+    </div>
+   </td>
+   <td>${tagFor(it)}</td>
+   <td><div style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(it.equipo_medico||'')}">${escapeHtml(it.equipo_medico||'—')}</div></td>
+   <td>${escapeHtml(it.ubicacion||'—')}</td>
+   <td>${fmtPrice(it)}</td>
+   <td><div class="t-actions">
+    <button class="btn-icon" onclick="openDetail(${it.id});event.stopPropagation()" title="Editar">✎</button>
+    <button class="btn-icon" onclick="confirmDelete(${it.id});event.stopPropagation()" title="Eliminar">🗑</button>
+   </div></td>
+  </tr>
+ `).join('');
+}
+
+// Filters listeners
+$('search').addEventListener('input', render);
+$('filter-equipo').addEventListener('change', render);
+$('filter-marca').addEventListener('change', render);
+document.querySelectorAll('#state-chips .chip').forEach(c => c.addEventListener('click', () => {
+ document.querySelectorAll('#state-chips .chip').forEach(x => x.classList.remove('active'));
+ c.classList.add('active'); CURRENT_STATE = c.dataset.state; render();
+}));
+
+// Stock stepper
+async function bumpStock(id, delta, e){
+ if(e) e.stopPropagation();
+ const it = DATA.find(x => x.id === id); if(!it) return;
+ const newStock = Math.max(0, (it.stock || 0) + delta);
+ await patch(id, { stock: newStock, estado: newStock === 0 ? 'SIN STOCK' : 'OK' }, false);
+}
+async function setStock(id, v, e){
+ if(e) e.stopPropagation();
+ const newStock = Math.max(0, parseInt(v) || 0);
+ await patch(id, { stock: newStock, estado: newStock === 0 ? 'SIN STOCK' : 'OK' }, false);
+}
+
+async function patch(id, body, showToast=true){
+ try{
+  const r = await fetch(`${API}/insumos/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if(!r.ok) throw new Error(await r.text());
+  const updated = await r.json();
+  const idx = DATA.findIndex(x => x.id === id); if(idx >= 0) DATA[idx] = updated;
+  render();
+  if(showToast) toast('Guardado', 'ok');
+ }catch(e){ toast('Error: '+e.message, 'err'); reload(); }
+}
+
+// Side panel: detail / edit
+function openDetail(id){
+ const it = DATA.find(x => x.id === id); if(!it) return;
+ $('p-title').textContent = it.nombre;
+ const u = fotoUrl(it);
+ $('p-body').innerHTML = `
+  <div class="photo-area" onclick="document.getElementById('p-file').click()">
+   ${u ? `<img id="p-img" src="${u}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}
+   <div class="placeholder" ${u ? 'style="display:none"' : ''}>📷</div>
+   <div class="change">📷 Cambiar foto</div>
+   <input type="file" id="p-file" accept="image/*" style="display:none" onchange="uploadFoto(${it.id}, this)">
+  </div>
+  <div class="fields">
+   <div class="full"><label>Nombre</label><input id="f-nombre" value="${escapeHtml(it.nombre)}"></div>
+   <div><label>Stock</label><input id="f-stock" type="number" value="${it.stock}"></div>
+   <div><label>Estado</label>
+    <select id="f-estado">
+     <option value="OK"${it.estado==='OK'?' selected':''}>OK</option>
+     <option value="SIN STOCK"${it.estado==='SIN STOCK'?' selected':''}>SIN STOCK</option>
+    </select>
+   </div>
+   <div class="full"><label>Equipo médico</label><input id="f-equipo" value="${escapeHtml(it.equipo_medico||'')}"></div>
+   <div><label>Marca</label><input id="f-marca" value="${escapeHtml(it.marca||'')}"></div>
+   <div><label>Referencia</label><input id="f-ref" value="${escapeHtml(it.referencia||'')}"></div>
+   <div class="full"><label>Ubicación</label><input id="f-ubic" value="${escapeHtml(it.ubicacion||'')}"></div>
+   <div><label>Promedio anual</label><input id="f-prom" type="number" value="${it.prom_anual||0}"></div>
+   <div><label>Solicitud compra</label><input id="f-sol" type="number" value="${it.solicitud_compra||0}"></div>
+   <div><label>Moneda</label>
+    <select id="f-mon">
+     <option value="">—</option>
+     <option value="USD"${it.moneda==='USD'?' selected':''}>USD</option>
+     <option value="ARS"${it.moneda==='ARS'?' selected':''}>ARS</option>
+    </select>
+   </div>
+   <div><label>Precio unitario</label><input id="f-precio" type="number" step="0.01" value="${it.precio_unit_valor||0}"></div>
+   <div class="full"><label>Precio (texto original)</label><input id="f-precio-txt" value="${escapeHtml(it.precio_original||'')}"></div>
+  </div>`;
+ $('p-foot').innerHTML = `
+  <button class="btn btn-success" onclick="saveDetail(${it.id})">💾 Guardar</button>
+  <button class="btn btn-secondary" onclick="closePanel()">Cancelar</button>
+  <button class="btn btn-danger" style="margin-left:auto" onclick="confirmDelete(${it.id})">🗑️ Eliminar</button>`;
+ openPanel();
+}
+
+function openCreate(){
+ $('p-title').textContent = 'Nuevo insumo';
+ $('p-body').innerHTML = `
+  <div class="fields">
+   <div class="full"><label>Nombre del insumo *</label><input id="f-nombre" autofocus></div>
+   <div><label>Stock inicial</label><input id="f-stock" type="number" value="0"></div>
+   <div><label>Estado</label>
+    <select id="f-estado"><option value="OK">OK</option><option value="SIN STOCK">SIN STOCK</option></select>
+   </div>
+   <div class="full"><label>Equipo médico</label><input id="f-equipo"></div>
+   <div><label>Marca</label><input id="f-marca"></div>
+   <div><label>Referencia</label><input id="f-ref"></div>
+   <div class="full"><label>Ubicación</label><input id="f-ubic"></div>
+   <div><label>Promedio anual</label><input id="f-prom" type="number" value="0"></div>
+   <div><label>Solicitud compra</label><input id="f-sol" type="number" value="0"></div>
+   <div><label>Moneda</label>
+    <select id="f-mon"><option value="USD">USD</option><option value="ARS">ARS</option></select>
+   </div>
+   <div><label>Precio unitario</label><input id="f-precio" type="number" step="0.01" value="0"></div>
+   <div class="full"><label>Precio (texto)</label><input id="f-precio-txt" placeholder="Ej: USD 686,79"></div>
+  </div>
+  <p style="font-size:12px;color:var(--muted);margin-top:14px">💡 Después de crearlo, podés subirle una foto desde el detalle.</p>`;
+ $('p-foot').innerHTML = `
+  <button class="btn btn-success" onclick="saveNew()">💾 Crear</button>
+  <button class="btn btn-secondary" onclick="closePanel()">Cancelar</button>`;
+ openPanel();
+}
+
+function readFields(){
+ return {
+  nombre: $('f-nombre').value.trim(),
+  stock: parseInt($('f-stock').value || 0),
+  estado: $('f-estado').value || null,
+  equipo_medico: $('f-equipo').value || null,
+  marca: $('f-marca').value || null,
+  referencia: $('f-ref').value || null,
+  ubicacion: $('f-ubic').value || null,
+  prom_anual: parseInt($('f-prom').value || 0) || null,
+  solicitud_compra: parseInt($('f-sol').value || 0) || null,
+  moneda: $('f-mon').value || null,
+  precio_unit_valor: parseFloat($('f-precio').value || 0) || null,
+  precio_original: $('f-precio-txt').value || null,
+ };
+}
+
+async function saveDetail(id){
+ const body = readFields();
+ if(!body.nombre){ toast('El nombre es obligatorio', 'err'); return; }
+ try{
+  const r = await fetch(`${API}/insumos/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if(!r.ok) throw new Error(await r.text());
+  toast('Cambios guardados', 'ok'); closePanel(); reload();
+ }catch(e){ toast('Error: '+e.message, 'err'); }
+}
+
+async function saveNew(){
+ const body = readFields();
+ if(!body.nombre){ toast('El nombre es obligatorio', 'err'); return; }
+ try{
+  const r = await fetch(`${API}/insumos`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if(!r.ok) throw new Error(await r.text());
+  toast('Insumo creado', 'ok'); closePanel(); reload();
+ }catch(e){ toast('Error: '+e.message, 'err'); }
+}
+
+async function uploadFoto(id, input){
+ const f = input.files[0]; if(!f) return;
+ const fd = new FormData(); fd.append('file', f);
+ try{
+  const r = await fetch(`${API}/insumos/${id}/foto`, { method:'POST', body: fd });
+  if(!r.ok) throw new Error(await r.text());
+  toast('Foto actualizada', 'ok');
+  const img = $('p-img');
+  if(img){ img.src = `${API}/insumos/${id}/foto?t=${Date.now()}`; img.style.display=''; img.nextElementSibling.style.display='none'; }
+  reload();
+ }catch(e){ toast('Error: '+e.message, 'err'); }
+}
+
+async function confirmDelete(id){
+ if(!confirm('¿Eliminar este insumo? Esta acción no se puede deshacer.')) return;
+ try{
+  const r = await fetch(`${API}/insumos/${id}`, { method:'DELETE' });
+  if(!r.ok && r.status !== 204) throw new Error(await r.text());
+  toast('Eliminado', 'ok'); closePanel(); reload();
+ }catch(e){ toast('Error: '+e.message, 'err'); }
+}
+
+function openPanel(){ $('panel').classList.add('open'); $('overlay').classList.add('active'); }
+function closePanel(){ $('panel').classList.remove('open'); $('overlay').classList.remove('active'); }
+
+// Init
+checkApi();
+reload();
+setInterval(checkApi, 15000);
+</script>
+</body>
+</html>
