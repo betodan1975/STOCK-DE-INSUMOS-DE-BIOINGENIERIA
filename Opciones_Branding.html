@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Opciones de branding — Stock Insumos Bioingeniería</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
+body{background:#eef2f5;color:#0f172a;padding:24px;min-height:100vh}
+.wrap{max-width:1400px;margin:0 auto}
+.intro{background:#fff;border-radius:14px;padding:20px 24px;margin-bottom:24px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.intro h1{font-size:22px;color:#0f766e;margin-bottom:6px}
+.intro p{font-size:14px;color:#475569;line-height:1.5}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+.card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 16px rgba(15,23,42,.08);display:flex;flex-direction:column}
+.card-head{padding:14px 18px;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+.card-head h2{font-size:14px;color:#0f172a}
+.card-head .pill{font-size:11px;padding:3px 10px;border-radius:999px;background:#0f766e;color:#fff;font-weight:600}
+.mock{height:340px;overflow:hidden}
+
+/* === LOGO SVG MARK reusable === */
+.logo-mark{display:inline-block;vertical-align:middle}
+.logo-h{display:flex;align-items:center;gap:8px}
+.logo-h .txt{display:flex;flex-direction:column;line-height:1}
+.logo-h .l1{font-size:12px;font-weight:800;color:#1AB8A9;letter-spacing:1.3px;line-height:1}
+.logo-h .l2{font-size:12px;font-weight:800;color:#1AB8A9;letter-spacing:1.3px;line-height:1;margin-top:1px}
+.logo-h .l3{font-size:8px;font-weight:500;color:#64748b;margin-top:2px}
+/* En contextos con fondo oscuro/gradient (opt A): texto en blanco */
+.logo-h.on-dark .l1,.logo-h.on-dark .l2{color:#fff}
+.logo-h.on-dark .l3{color:rgba(255,255,255,.85)}
+
+/* ===== OPCIÓN A — Réplica oficial del hospital ===== */
+.opt-A .topbar{background:linear-gradient(135deg,#1ab8a9,#1798bd);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+.opt-A .area-tag{font-size:9px;background:rgba(255,255,255,.25);padding:3px 10px;border-radius:99px;letter-spacing:.5px;font-weight:600}
+.opt-A .tabs{background:#fff;border-bottom:2px solid #1ab8a9;padding:0 16px;display:flex;gap:0;font-size:11px}
+.opt-A .tab{padding:8px 12px;color:#64748b;font-weight:500}
+.opt-A .tab.active{background:#e6f8f5;color:#0f766e;border-bottom:3px solid #1ab8a9;margin-bottom:-2px;font-weight:600}
+.opt-A .body{padding:14px 16px;background:#f6fbfa}
+.opt-A .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.opt-A .kpi{background:#fff;border-radius:8px;padding:8px;border-left:3px solid #1ab8a9}
+.opt-A .kpi .l{font-size:8px;color:#64748b;text-transform:uppercase}
+.opt-A .kpi .v{font-size:18px;font-weight:700;color:#0f172a}
+.opt-A .row{display:flex;gap:6px}
+.opt-A .item{flex:1;background:#fff;border-radius:8px;padding:8px;border:1px solid #e2e8f0}
+.opt-A .item .t{font-size:9px;font-weight:600;color:#0f172a;margin-bottom:2px}
+.opt-A .item .s{font-size:8px;color:#64748b}
+.opt-A .badge-A{display:inline-block;background:#1ab8a9;color:#fff;font-size:7px;padding:1px 5px;border-radius:99px;font-weight:600}
+
+/* ===== OPCIÓN B ===== */
+.opt-B .topbar{background:#073b4c;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.opt-B .bio{display:flex;flex-direction:column}
+.opt-B .bio .big{font-size:17px;font-weight:800;letter-spacing:1.5px}
+.opt-B .bio .small{font-size:9px;opacity:.7;letter-spacing:1px;text-transform:uppercase}
+.opt-B .nav{background:#fff;padding:0 16px;display:flex;gap:0;font-size:11px;border-bottom:1px solid #e2e8f0}
+.opt-B .n{padding:10px 14px;color:#64748b;font-weight:500}
+.opt-B .n.active{color:#073b4c;border-bottom:3px solid #1ab8a9;font-weight:700}
+.opt-B .body{padding:14px;background:#f1f5f9}
+.opt-B .hero{background:#fff;border-radius:10px;padding:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;border:1px solid #e2e8f0}
+.opt-B .hero .h{font-size:10px;color:#64748b;text-transform:uppercase}
+.opt-B .hero .big{font-size:22px;font-weight:800;color:#073b4c}
+.opt-B .alert{background:#fef2f2;border-left:3px solid #ef4444;padding:6px 8px;border-radius:6px;font-size:9px;color:#991b1b}
+.opt-B .items{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.opt-B .it{background:#fff;border-radius:6px;padding:6px;font-size:8px}
+.opt-B .it .n{font-weight:700;color:#0f172a;font-size:9px}
+.opt-B .it .stk{color:#1ab8a9;font-weight:800;font-size:13px}
+.opt-B .logo-chip{background:rgba(255,255,255,.95);padding:5px 9px;border-radius:8px}
+
+/* ===== OPCIÓN C ===== */
+.opt-C .bar1{background:#fff;border-bottom:1px solid #e2e8f0;padding:6px 16px;font-size:9px;color:#64748b;display:flex;justify-content:space-between}
+.opt-C .bar1 .l{display:flex;gap:8px;align-items:center}
+.opt-C .pill-sl{background:#1798bd;color:#fff;padding:2px 8px;border-radius:3px;font-size:8px;font-weight:700}
+.opt-C .topbar{background:#fff;color:#0f172a;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1AB8A9}
+.opt-C .right-info{font-size:10px;color:#64748b;text-align:right}
+.opt-C .right-info strong{color:#1798bd;display:block;font-size:11px}
+.opt-C .menu{background:#1798bd;padding:0 16px;display:flex;gap:0;font-size:10px}
+.opt-C .m{padding:7px 12px;color:#bae6fd}
+.opt-C .m.active{background:#fff;color:#1798bd;font-weight:600}
+.opt-C .body{padding:14px 16px;background:#f8fafc}
+.opt-C .panel{background:#fff;border-radius:8px;padding:10px;border:1px solid #e2e8f0;margin-bottom:8px}
+.opt-C .panel h4{font-size:11px;color:#1798bd;margin-bottom:6px;font-weight:700;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
+.opt-C .row{display:flex;gap:6px;margin-bottom:6px}
+.opt-C .row > *{flex:1;font-size:9px;background:#f1f5f9;padding:6px;border-radius:4px}
+.opt-C .row .ok{border-left:3px solid #10b981}
+.opt-C .row .warn{border-left:3px solid #f59e0b}
+.opt-C .row .danger{border-left:3px solid #ef4444}
+
+/* ===== OPCIÓN D — minimal con franja teal arriba ===== */
+.opt-D{background:#f6f8fb}
+/* Cinta de marca arriba (ahora con color para que el logo se vea bien) */
+.opt-D .stripe{background:linear-gradient(135deg,#1ab8a9,#1798bd);height:6px}
+.opt-D .topbar{background:#fff;padding:12px 16px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+.opt-D .brand-side{display:flex;align-items:center;gap:14px}
+.opt-D .sep{width:1px;height:34px;background:#e2e8f0}
+.opt-D .area{font-size:11px;font-weight:800;color:#0d9488;letter-spacing:.8px}
+.opt-D .area small{display:block;font-size:9px;font-weight:500;color:#64748b;letter-spacing:0;margin-top:2px}
+.opt-D .actions{display:flex;gap:6px;align-items:center}
+.opt-D .btn{background:#1ab8a9;color:#fff;padding:6px 14px;border-radius:8px;font-size:10px;font-weight:600}
+.opt-D .user{font-size:9px;color:#64748b;background:#f1f5f9;padding:4px 8px;border-radius:99px}
+.opt-D .body{padding:14px 16px}
+.opt-D .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.opt-D .st{background:#fff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;position:relative}
+.opt-D .st .l{font-size:8px;color:#64748b;text-transform:uppercase;font-weight:600;letter-spacing:.5px}
+.opt-D .st .v{font-size:20px;font-weight:800;color:#0f172a;margin-top:2px}
+.opt-D .st .ic{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:6px;background:#ecfdf5;color:#0d9488;display:flex;align-items:center;justify-content:center;font-size:11px}
+.opt-D .tbl{background:#fff;border-radius:10px;border:1px solid #e2e8f0;overflow:hidden}
+.opt-D .th{background:#f8fafc;padding:6px 10px;font-size:8px;color:#64748b;text-transform:uppercase;font-weight:700;display:flex;gap:10px;border-bottom:1px solid #e2e8f0}
+.opt-D .tr{padding:7px 10px;font-size:9px;display:flex;gap:10px;border-bottom:1px solid #f1f5f9;align-items:center}
+.opt-D .dot{width:6px;height:6px;border-radius:50%;background:#10b981}
+.opt-D .dot.warn{background:#f59e0b}
+
+.foot{margin-top:24px;padding:18px;background:#fff;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.foot h3{font-size:15px;margin-bottom:8px;color:#0f172a}
+.foot p{font-size:13px;color:#475569;line-height:1.6;margin-bottom:6px}
+.foot code{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;color:#0f766e}
+
+/* === SVG mark variants === */
+.mark-blue{fill:#1798bd}
+.mark-white{fill:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="intro">
+  <h1>🎨 Branding con logo — solo A y D refinadas</h1>
+  <p>Mejoré el dibujo del logo y arreglé el contraste en la <strong>opción D</strong> (le agregué una cintita teal arriba para que el logo se vea con presencia). Compará A y D y decime cuál te gusta más.</p>
+</div>
+
+<div class="grid">
+
+  <!-- ===== OPCIÓN A ===== -->
+  <div class="card">
+    <div class="card-head"><h2>Opción A — Réplica oficial del sitio web</h2><span class="pill">OFICIAL</span></div>
+    <div class="mock opt-A">
+      <div class="topbar">
+        <div class="logo-h on-dark">
+          <!-- Logo H — versión blanca para fondo oscuro -->
+          <svg class="logo-mark" width="40" height="34" viewBox="0 0 50 40">
+            <rect x="2" y="3" width="13" height="34" rx="6.5" class="mark-white"/>
+            <rect x="35" y="3" width="13" height="34" rx="6.5" class="mark-white"/>
+            <rect x="13" y="14" width="24" height="12" class="mark-white"/>
+            <text x="25" y="27" font-family="Arial Black,sans-serif" font-size="14" font-weight="900" fill="#1798bd" text-anchor="middle">H</text>
+          </svg>
+          <div class="txt">
+            <span class="l1">HOSPITAL</span>
+            <span class="l2">CENTRAL</span>
+            <span class="l3">Dr. Ramón Carrillo</span>
+          </div>
+        </div>
+        <span class="area-tag">SERVICIO DE BIOINGENIERÍA</span>
+      </div>
+      <div class="tabs">
+        <div class="tab active">📦 Insumos</div>
+        <div class="tab">⚠️ Alertas</div>
+        <div class="tab">📜 Historial</div>
+        <div class="tab">📝 Pedidos</div>
+        <div class="tab">⚙️ Config</div>
+      </div>
+      <div class="body">
+        <div class="kpis">
+          <div class="kpi"><div class="l">Total insumos</div><div class="v">130</div></div>
+          <div class="kpi"><div class="l">Stock OK</div><div class="v">35</div></div>
+          <div class="kpi"><div class="l">Sin stock</div><div class="v">95</div></div>
+        </div>
+        <div class="row">
+          <div class="item"><span class="badge-A">OK</span><div class="t">Cable ECG 5 derivaciones</div><div class="s">Stock 30 · PHILIPS</div></div>
+          <div class="item"><span class="badge-A" style="background:#ef4444">CRÍTICO</span><div class="t">Sensor SpO2 M1191BL</div><div class="s">Stock 5 · PHILIPS</div></div>
+          <div class="item"><span class="badge-A">OK</span><div class="t">Set 9 Latiguillos EEG</div><div class="s">Stock 1 · PHILIPS</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== OPCIÓN D MEJORADA ===== -->
+  <div class="card">
+    <div class="card-head"><h2>Opción D — Dashboard moderno minimal (con cinta teal)</h2><span class="pill" style="background:#0d9488">SAAS</span></div>
+    <div class="mock opt-D">
+      <div class="stripe"></div>
+      <div class="topbar">
+        <div class="brand-side">
+          <div class="logo-h">
+            <!-- Logo H — versión azul para fondo blanco -->
+            <svg class="logo-mark" width="44" height="36" viewBox="0 0 50 40">
+              <rect x="2" y="3" width="13" height="34" rx="6.5" class="mark-blue"/>
+              <rect x="35" y="3" width="13" height="34" rx="6.5" class="mark-blue"/>
+              <rect x="13" y="14" width="24" height="12" class="mark-blue"/>
+              <text x="25" y="27" font-family="Arial Black,sans-serif" font-size="14" font-weight="900" fill="#fff" text-anchor="middle">H</text>
+            </svg>
+            <div class="txt">
+              <span class="l1" style="font-size:11px">HOSPITAL CENTRAL</span>
+              <span class="l3" style="font-size:8px">Dr. Ramón Carrillo</span>
+            </div>
+          </div>
+          <div class="sep"></div>
+          <div class="area">BIOINGENIERÍA<small>Stock de insumos</small></div>
+        </div>
+        <div class="actions">
+          <span class="user">👤 Process</span>
+          <span class="btn">＋ Nuevo</span>
+        </div>
+      </div>
+      <div class="body">
+        <div class="stats">
+          <div class="st"><div class="l">Total</div><div class="v">130</div><div class="ic">📦</div></div>
+          <div class="st"><div class="l">OK</div><div class="v" style="color:#10b981">35</div><div class="ic">✓</div></div>
+          <div class="st"><div class="l">Bajo</div><div class="v" style="color:#f59e0b">73</div><div class="ic" style="background:#fef3c7;color:#92400e">⚠</div></div>
+          <div class="st"><div class="l">Sin stock</div><div class="v" style="color:#ef4444">95</div><div class="ic" style="background:#fee2e2;color:#991b1b">✕</div></div>
+        </div>
+        <div class="tbl">
+          <div class="th"><span style="flex:2">Insumo</span><span style="flex:1">Stock</span><span style="flex:1">Estado</span></div>
+          <div class="tr"><span style="flex:2">Cable ECG 5 derivaciones M1644A</span><span style="flex:1">30</span><span style="flex:1"><span class="dot"></span> OK</span></div>
+          <div class="tr"><span style="flex:2">Sensor SpO2 M1191BL</span><span style="flex:1">5</span><span style="flex:1"><span class="dot warn"></span> Bajo</span></div>
+          <div class="tr"><span style="flex:2">Set 9 Latiguillos EEG</span><span style="flex:1">1</span><span style="flex:1"><span class="dot warn"></span> Bajo</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="foot">
+  <h3>✅ Lo que arreglé en D</h3>
+  <p>• Logo en <strong>color azul/teal</strong> (igual al original del hospital) en lugar de blanco, así contrasta con el fondo blanco.</p>
+  <p>• Le agregué una <strong>cintita teal-azul</strong> arriba del todo (6px de alto) para darle presencia institucional pero sin perder el look minimal.</p>
+  <p>• Mejoré el dibujo del logo: dos pilares con extremos redondeados + barra central + H en blanco adentro. Más fiel al original.</p>
+
+  <h3 style="margin-top:14px">🎯 Diferencias clave</h3>
+  <p>👉 <strong>A</strong>: barra de marca <em>grande</em> arriba (12px de alto teal/azul), logo en blanco, tag de área a la derecha. Look más institucional / corporativo del hospital.</p>
+  <p>👉 <strong>D</strong>: barra de marca <em>delgada</em> (solo 6px), logo en azul sobre blanco, separador y "BIOINGENIERÍA" al lado, botones de acción a la derecha. Look más app/dashboard moderno.</p>
+
+  <p style="margin-top:14px;color:#0f172a;font-weight:600">Decime ahora la elegida (A o D) y la aplico al sistema real para que la veas funcionando en localhost:8000.</p>
+</div>
+
+</div>
+</body>
+</html>

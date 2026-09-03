@@ -51,17 +51,17 @@ if not exist "%PYEXE%" (
     )
 )
 
-REM ---- Instalar dependencias solo la primera vez ----
-if not exist "%INSTALLED_FLAG%" (
-    echo Instalando dependencias ^(esto puede tardar un rato, solo pasa la primera vez^)...
-    "%PYEXE%" -m pip install --upgrade pip
-    "%PYEXE%" -m pip install -r "%API_DIR%\requirements.txt"
-    if errorlevel 1 (
-        echo.
-        echo ERROR instalando dependencias. Revisa tu conexion a internet.
-        pause
-        exit /b 1
-    )
+REM ---- Instalar/actualizar dependencias (rapido si ya estan instaladas) ----
+REM No frenamos el arranque si esto falla (ej: sin internet, o una
+REM libreria opcional no tiene version para esta version de Python):
+REM la app esta preparada para arrancar igual con funciones opcionales
+REM (como buscar por foto) desactivadas hasta que se pueda instalar.
+echo Verificando dependencias...
+"%PYEXE%" -m pip install -r "%API_DIR%\requirements.txt" --quiet --disable-pip-version-check
+if errorlevel 1 (
+    echo (!) No se pudieron instalar/actualizar todas las dependencias.
+    echo     La app va a arrancar igual; puede que falten funciones opcionales.
+) else (
     echo OK> "%INSTALLED_FLAG%"
 )
 
@@ -74,7 +74,7 @@ if not exist "%API_DIR%\stock.db" (
 
 REM ---- Levantar uvicorn en una ventana minimizada ----
 echo Iniciando servidor Stock de Insumos...
-start "Stock Insumos API" /MIN "%PYEXE%" -m uvicorn main:app --host 127.0.0.1 --port 8000
+start "Stock Insumos API" /MIN "%PYEXE%" -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 REM ---- Esperar a que el puerto este escuchando (max ~20s) ----
 set /a tries=0
