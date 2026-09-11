@@ -1,0 +1,3489 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>Stock de Insumos</title>
+<style>
+:root{
+  /* Paleta institucional Hospital Central Dr. Ramón Carrillo */
+  --teal:#1ab8a9; --teal-d:#0d9488; --teal-l:#e6f8f5;
+  --blue:#1798bd;
+  --bg:#f4f6f9; --card:#fff; --border:#e5e7eb; --line:#f3f4f6;
+  --text:#111; --muted:#6b7280; --label:#374151;
+  --ok:#10b981; --warn:#f59e0b; --danger:#dc2626;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+button{font:inherit;border:0;cursor:pointer;background:none;color:inherit}
+input,select,textarea{font:inherit;color:inherit}
+a{color:var(--teal);text-decoration:none}
+
+/* === Top bar (base) === */
+.topbar{position:sticky;top:0;z-index:50;box-shadow:0 2px 10px rgba(0,0,0,.08);display:flex;align-items:center;gap:10px;padding:10px 14px}
+.topbar .brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.topbar .logo-mark{flex-shrink:0}
+.topbar .logo-txt{display:flex;flex-direction:column;line-height:1.05;flex-shrink:0}
+.topbar .logo-txt .l1{font-size:11px;font-weight:800;letter-spacing:1.1px;line-height:1}
+.topbar .logo-txt .l2{font-size:11px;font-weight:800;letter-spacing:1.1px;line-height:1;margin-top:1px}
+.topbar .logo-txt .l3{font-size:7.5px;font-weight:500;margin-top:1px;opacity:.75}
+.topbar .sep{width:1px;height:32px;flex-shrink:0}
+.topbar .area{display:flex;flex-direction:column;line-height:1;min-width:0;overflow:hidden}
+.topbar .area .name{font-size:13px;font-weight:700;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .area .sub{font-size:10px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.user-chip{font-size:11px;padding:4px 9px;border-radius:999px;white-space:nowrap}
+.theme-toggle{padding:5px 10px;border-radius:999px;font-size:10px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+
+/* === Theme A: institucional (gradient turquesa+azul) === */
+[data-theme="A"] .topbar{background:linear-gradient(135deg,var(--teal),var(--blue));color:#fff;padding:12px 16px}
+[data-theme="A"] .topbar .logo-txt .l1,
+[data-theme="A"] .topbar .logo-txt .l2{color:#fff}
+[data-theme="A"] .topbar .logo-txt .l3{color:rgba(255,255,255,.85)}
+[data-theme="A"] .topbar .sep{background:rgba(255,255,255,.3)}
+[data-theme="A"] .topbar .area .name{color:#fff}
+[data-theme="A"] .topbar .area .sub{color:rgba(255,255,255,.85)}
+[data-theme="A"] .topbar .logo-mark .mark-fill{fill:#fff}
+[data-theme="A"] .topbar .logo-mark .mark-letter{fill:var(--blue)}
+[data-theme="A"] .user-chip{background:rgba(255,255,255,.2);color:#fff}
+[data-theme="A"] .theme-toggle{background:rgba(255,255,255,.2);color:#fff}
+
+/* === Theme D: dashboard minimal (cinta finita + fondo blanco) === */
+[data-theme="D"] body{background:#f6f8fb}
+[data-theme="D"] .topbar{background:#fff;color:#0f172a;border-top:5px solid;border-image:linear-gradient(135deg,var(--teal),var(--blue)) 1;padding:10px 16px}
+[data-theme="D"] .topbar .logo-txt .l1,
+[data-theme="D"] .topbar .logo-txt .l2{color:var(--blue)}
+[data-theme="D"] .topbar .logo-txt .l3{color:#64748b}
+[data-theme="D"] .topbar .sep{background:#e2e8f0}
+[data-theme="D"] .topbar .area .name{color:var(--teal-d)}
+[data-theme="D"] .topbar .area .sub{color:#64748b}
+[data-theme="D"] .topbar .logo-mark .mark-fill{fill:#1e40af}
+[data-theme="D"] .topbar .logo-mark .mark-letter{fill:#fff}
+[data-theme="D"] .user-chip{background:#f1f5f9;color:#475569}
+[data-theme="D"] .theme-toggle{background:var(--teal);color:#fff}
+
+/* Bottom nav (mobile-first) */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);display:flex;z-index:50;box-shadow:0 -2px 10px rgba(0,0,0,.04);padding-bottom:env(safe-area-inset-bottom)}
+.bottom-nav button{flex:1;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-size:10px;font-weight:500;border-top:3px solid transparent}
+.bottom-nav button.active{color:var(--teal);border-top-color:var(--teal);background:var(--teal-l)}
+.bottom-nav .ico{font-size:20px;line-height:1}
+.bottom-nav .ico .dot{position:absolute;top:6px;right:calc(50% - 16px);width:8px;height:8px;background:var(--danger);border-radius:50%;display:none}
+.bottom-nav button.has-alerts .ico .dot{display:block}
+
+/* Layout */
+.container{max-width:760px;margin:0 auto;padding:14px 14px 90px}
+.hidden{display:none!important}
+body.is-usuario .admin-only{display:none!important}
+/* En PC (pantalla ancha) el listado de insumos aprovecha todo el ancho;
+   las demás vistas se mantienen centradas a 760px como hasta ahora. */
+@media (min-width:900px){
+  .container{max-width:1600px}
+  #view-detail,#view-history,#view-consumos,#view-pedidos,#view-config{max-width:760px;margin:0 auto}
+}
+
+/* Toolbar */
+.toolbar{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.toolbar .row{display:flex;gap:8px;flex-wrap:wrap}
+.toolbar input[type=text],.toolbar select{padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;background:#fff;flex:1;min-width:0}
+.toolbar select{flex:0 1 auto}
+
+/* Buttons */
+.btn{padding:10px 14px;border-radius:10px;font-size:14px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:transform .06s,filter .15s;border:0}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--teal);color:#fff}.btn-primary:active{background:var(--teal-d)}
+.btn-secondary{background:#f3f4f6;color:var(--label)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-warn{background:var(--warn);color:#fff}
+.btn-success{background:var(--ok);color:#fff}
+.btn-block{width:100%}
+.btn-sm{padding:7px 11px;font-size:13px}
+
+/* Cards / list */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+@media (min-width:540px){.gallery{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}}
+.card{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;border:2px solid transparent;display:flex;flex-direction:column;transition:transform .08s,border-color .15s}
+.card:active{transform:scale(.98)}
+.card.critical{border-color:var(--danger)}
+.card.warn{border-color:var(--warn)}
+.card .img-wrap{background:#f3f4f6;height:120px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.card img{max-width:100%;max-height:100%;object-fit:contain}
+.card .no-img{color:#9ca3af;font-size:36px}
+.card .badge{position:absolute;top:6px;right:6px;background:var(--danger);color:#fff;font-size:10px;padding:2px 7px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+.card .badge.ok{background:var(--ok)}
+.card .badge.warn{background:var(--warn)}
+.card .body{padding:9px 10px;flex:1;display:flex;flex-direction:column;gap:4px}
+.card .title{font-size:12.5px;font-weight:600;line-height:1.25;color:#111;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:30px}
+.card .meta{font-size:10.5px;color:var(--muted)}
+.card .stock-row{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid var(--line)}
+.card .stock-val{font-size:17px;font-weight:700;color:var(--teal)}
+.card.critical .stock-val{color:var(--danger)}
+.card .price{font-size:11px;color:var(--label);font-weight:500}
+.arm-letter-badge{position:absolute;top:6px;left:6px;background:rgba(15,118,110,.92);color:#fff;font-size:15px;font-weight:800;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.arm-card-add{align-items:center;justify-content:center;color:var(--muted);border:2px dashed #d1d5db;background:transparent;box-shadow:none}
+.arm-card-add .img-wrap{background:transparent}
+.arm-card-add .plus{font-size:34px;color:var(--teal)}
+
+/* Section */
+.section{background:#fff;border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.section h2{font-size:15px;margin-bottom:10px;color:#111;display:flex;align-items:center;gap:8px}
+.section h2 .count{background:var(--teal);color:#fff;font-size:11px;padding:2px 9px;border-radius:999px;font-weight:600}
+.empty{text-align:center;color:#9ca3af;padding:24px 12px;font-style:italic;font-size:13px}
+
+/* Alert pills */
+.alert{padding:10px 12px;border-radius:10px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:8px}
+.alert-warn{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.alert-danger{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.alert-info{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+.alert-ok{background:#d1fae5;color:#065f46;border:1px solid #a7f3d0}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#f3f4f6;color:var(--label)}
+.pill.usd{background:#d1fae5;color:#065f46}
+.pill.ars{background:#e0e7ff;color:#3730a3}
+.pill.in{background:#d1fae5;color:#065f46}
+.pill.out{background:#fee2e2;color:#991b1b}
+.pill.aj{background:#fef3c7;color:#92400e}
+
+/* Detail view */
+.detail-photo{background:#f3f4f6;border-radius:12px;height:240px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;margin-bottom:12px}
+.detail-photo img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in}
+.detail-photo .upload-btn{position:absolute;bottom:8px;left:8px;right:8px;background:rgba(255,255,255,.95);padding:8px;text-align:center;font-size:12px;border-radius:8px;cursor:pointer;font-weight:500}
+.detail-info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.detail-info .field{background:#f9fafb;padding:8px 10px;border-radius:8px}
+.detail-info .field.full{grid-column:1/-1}
+.detail-info .field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;display:block;margin-bottom:2px}
+.detail-info .field .val{font-size:13.5px;color:var(--text);word-break:break-word}
+
+.tabs-inner{display:flex;border-bottom:1px solid var(--border);margin:14px 0 10px;gap:2px}
+.tabs-inner button{padding:9px 14px;font-size:13px;font-weight:500;color:var(--muted);border-bottom:3px solid transparent}
+.tabs-inner button.active{color:var(--teal);border-bottom-color:var(--teal)}
+
+.movement-row{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
+.movement-row:last-child{border-bottom:0}
+.movement-row .ico{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0}
+.movement-row .ico.in{background:#d1fae5;color:#065f46}
+.movement-row .ico.out{background:#fee2e2;color:#991b1b}
+.movement-row .ico.aj{background:#fef3c7;color:#92400e}
+.movement-row .body{flex:1;min-width:0}
+.movement-row .top{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.movement-row .top strong{color:#111}
+.movement-row .top .qty{font-weight:700;white-space:nowrap}
+.movement-row .meta{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+
+/* Modal / sheet */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:100;padding:0;overflow-y:auto}
+@media (min-width:600px){.modal-bg{align-items:center;padding:24px}}
+.modal-bg.active{display:flex}
+.modal{background:#fff;border-radius:14px 14px 0 0;max-width:560px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 -10px 40px rgba(0,0,0,.2);display:flex;flex-direction:column}
+@media (min-width:600px){.modal{border-radius:14px}}
+.modal-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:5}
+.modal-header h3{font-size:16px;color:#111}
+.modal-close{font-size:26px;color:var(--muted);line-height:1;padding:0 6px}
+.modal-body{padding:14px 16px;flex:1}
+.modal-foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;background:#fff}
+
+/* Forms */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-grid.single{grid-template-columns:1fr}
+.form-row{display:flex;flex-direction:column;gap:4px}
+.form-row.full{grid-column:1/-1}
+.form-row label{font-size:11px;font-weight:600;color:var(--label);text-transform:uppercase;letter-spacing:.3px}
+.form-row input,.form-row select,.form-row textarea{padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;background:#fff}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:var(--teal)}
+.form-row textarea{resize:vertical;min-height:60px}
+.svc-dropdown{position:absolute;top:100%;left:0;right:0;margin-top:2px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.12);z-index:40}
+.svc-group{border-bottom:1px solid var(--line)}
+.svc-group:last-child{border-bottom:none}
+.svc-parent-row{display:flex;align-items:center;gap:6px;padding:9px 10px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--text)}
+.svc-parent-row:hover{background:var(--bg)}
+.svc-parent-row .svc-name{flex:1}
+.svc-parent-row .svc-caret{color:var(--muted);font-size:11px;width:14px;text-align:center;flex-shrink:0}
+.svc-subs{display:none;padding:0 0 4px}
+.svc-subs.open{display:block}
+.svc-sub-row{padding:7px 10px 7px 30px;cursor:pointer;font-size:13px;color:var(--label);display:flex;align-items:center;gap:6px}
+.svc-sub-row:hover{background:var(--bg)}
+.svc-sub-row .svc-arrow{color:#9ca3af;font-size:12px}
+.svc-empty{padding:14px;font-size:12.5px;color:var(--muted);text-align:center}
+@media (max-width:520px){.form-grid{grid-template-columns:1fr}}
+
+/* FAB */
+.fab{position:fixed;bottom:78px;right:18px;width:54px;height:54px;border-radius:50%;background:var(--teal);color:#fff;font-size:28px;box-shadow:0 6px 16px rgba(15,118,110,.4);z-index:30;display:flex;align-items:center;justify-content:center}
+.fab:active{background:var(--teal-d)}
+
+/* Photo viewer */
+.photo-viewer{position:fixed;inset:0;background:rgba(0,0,0,.93);display:none;align-items:center;justify-content:center;z-index:200;cursor:zoom-out}
+.photo-viewer.active{display:flex}
+.photo-viewer img{max-width:96vw;max-height:92vh;object-fit:contain}
+
+/* Login */
+/* ======================== INTRO ======================== */
+#intro-screen{position:fixed;inset:0;z-index:99999;background:#0a1f1c;overflow:hidden;cursor:pointer}
+#intro-screen.intro-hidden{display:none}
+#intro-screen.intro-closing{animation:introFadeOut .8s ease forwards}
+.intro-slide{position:absolute;inset:0;background-size:contain;background-repeat:no-repeat;background-position:center;background-color:#0a1f1c;opacity:0;transform:scale(1.02);animation-duration:13.8s;animation-timing-function:ease-in-out;animation-fill-mode:forwards;animation-iteration-count:1}
+.intro-slide:nth-child(1){animation-name:introSlide1;background-size:cover}
+.intro-slide:nth-child(2){animation-name:introSlide2}
+.intro-slide:nth-child(3){animation-name:introSlide3}
+.intro-slide:nth-child(4){animation-name:introSlide4}
+.intro-slide:nth-child(5){animation-name:introSlide5}
+.intro-slide:nth-child(6){animation-name:introSlide6}
+@keyframes introSlide1{0%{opacity:0;transform:scale(1.01)}3%{opacity:1}13.7%{opacity:1;transform:scale(1.05)}16.7%{opacity:0}100%{opacity:0}}
+@keyframes introSlide2{16.7%{opacity:0;transform:scale(1.01)}19.7%{opacity:1}30.3%{opacity:1;transform:scale(1.05)}33.3%{opacity:0}100%{opacity:0}}
+@keyframes introSlide3{33.3%{opacity:0;transform:scale(1.01)}36.3%{opacity:1}47%{opacity:1;transform:scale(1.05)}50%{opacity:0}100%{opacity:0}}
+@keyframes introSlide4{50%{opacity:0;transform:scale(1.01)}53%{opacity:1}63.7%{opacity:1;transform:scale(1.05)}66.7%{opacity:0}100%{opacity:0}}
+@keyframes introSlide5{66.7%{opacity:0;transform:scale(1.01)}69.7%{opacity:1}80.3%{opacity:1;transform:scale(1.05)}83.3%{opacity:0}100%{opacity:0}}
+@keyframes introSlide6{83.3%{opacity:0;transform:scale(1.01)}86.3%{opacity:1}100%{opacity:1;transform:scale(1.05)}}
+.intro-vignette{position:absolute;inset:0;background:linear-gradient(180deg,rgba(4,20,18,.55) 0%,rgba(4,20,18,.15) 30%,rgba(4,20,18,.25) 60%,rgba(4,20,18,.85) 100%)}
+.intro-content{position:relative;z-index:2;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 24px 9vh;text-align:center;color:#fff}
+.intro-logo-mark{width:56px;height:44px;margin-bottom:14px;opacity:0;animation:introTextIn .7s ease forwards;animation-delay:.3s}
+.intro-hospital{font-size:15px;letter-spacing:.14em;font-weight:600;text-transform:uppercase;color:#8fe0d3;opacity:0;animation:introTextIn .7s ease forwards;animation-delay:.5s}
+.intro-dept{font-size:clamp(26px,5.4vw,52px);font-weight:900;line-height:1.12;margin:10px 0 6px;opacity:0;animation:introTextIn .8s ease forwards;animation-delay:.85s;text-shadow:0 4px 24px rgba(0,0,0,.4)}
+.intro-sub{font-size:14px;color:#d7f3ee;opacity:0;animation:introTextIn .7s ease forwards;animation-delay:1.25s;letter-spacing:.02em}
+.intro-loader{margin-top:22px;width:150px;height:3px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden;opacity:0;animation:introTextIn .5s ease forwards;animation-delay:1.5s}
+.intro-loader-bar{height:100%;width:0%;background:linear-gradient(90deg,#2dd4bf,#38bdf8);border-radius:3px;animation:introLoaderFill 16.4s linear forwards}
+@keyframes introTextIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes introLoaderFill{0%{width:0%}100%{width:100%}}
+@keyframes introFadeOut{from{opacity:1}to{opacity:0;visibility:hidden}}
+.intro-skip{position:absolute;top:18px;right:18px;z-index:3;background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:7px 16px;font-size:12.5px;cursor:pointer;backdrop-filter:blur(4px)}
+.intro-skip:hover{background:rgba(255,255,255,.24)}
+@media (max-width:520px){.intro-content{padding-bottom:12vh}}
+
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,var(--teal),var(--blue))}
+.login-card{background:#fff;border-radius:16px;padding:26px 22px;width:100%;max-width:380px;box-shadow:0 14px 40px rgba(0,0,0,.18)}
+.login-card h1{font-size:20px;margin-bottom:4px;color:#111;text-align:center}
+.login-card .sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:18px}
+.login-card .form-row{margin-bottom:12px}
+.login-card .login-error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:12px}
+
+/* Toast */
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(20px);background:#111;color:#fff;padding:10px 16px;border-radius:999px;font-size:13px;z-index:300;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:90vw;text-align:center}
+.toast.show{opacity:.95;transform:translateX(-50%) translateY(0)}
+.toast.err{background:#991b1b}
+.toast.ok{background:#065f46}
+
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.center-loader{display:flex;justify-content:center;padding:40px}
+.center-loader .spin{width:30px;height:30px;border-color:rgba(15,118,110,.2);border-top-color:var(--teal)}
+</style>
+</head>
+<body>
+
+<!-- ======================== INTRO ======================== -->
+<div id="intro-screen" onclick="skipIntro()">
+  <div class="intro-slide" style="background-image:url('/static/intro/hospital_fachada.jpg')"></div>
+  <div class="intro-slide" style="background-image:url('/static/intro/ig_team.jpg');background-position:top center"></div>
+  <div class="intro-slide" style="background-image:url('/static/intro/ig_cart_bioingenieria.jpg')"></div>
+  <div class="intro-slide" style="background-image:url('/static/intro/ig_rx_repair.jpg')"></div>
+  <div class="intro-slide" style="background-image:url('/static/intro/ig_workshop.jpg')"></div>
+  <div class="intro-slide" style="background-image:url('/static/intro/ig_bed_maint.jpg')"></div>
+  <div class="intro-vignette"></div>
+  <div class="intro-content">
+    <svg class="intro-logo-mark" viewBox="0 0 60 50">
+      <g fill="#fff">
+        <ellipse cx="16" cy="15" rx="13" ry="11"/>
+        <ellipse cx="44" cy="35" rx="13" ry="11"/>
+        <path d="M 9 19 L 37 39 L 51 31 L 23 11 Z"/>
+      </g>
+      <text x="30" y="34" font-family="Arial Black,Helvetica,sans-serif" font-size="22" font-weight="900" fill="#0a1f1c" text-anchor="middle">H</text>
+    </svg>
+    <div class="intro-hospital">Hospital Central Dr. Ramón Carrillo · San Luis</div>
+    <div class="intro-dept">DEPARTAMENTO DE<br>BIOINGENIERÍA</div>
+    <div class="intro-sub">Sistema de Stock de Insumos</div>
+    <div class="intro-loader"><div class="intro-loader-bar"></div></div>
+  </div>
+  <button class="intro-skip" type="button" onclick="event.stopPropagation();skipIntro()">Saltar ▶</button>
+</div>
+
+<!-- ======================== LOGIN ======================== -->
+<div id="view-login" class="hidden">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Stock de Insumos</h1>
+      <div class="sub">Hospital Central Dr. Ramón Carrillo · Bioingeniería</div>
+      <div class="login-error" id="login-error" style="display:none"></div>
+      <form id="login-form" onsubmit="return false">
+        <div class="form-row"><label>Usuario</label><input type="text" id="login-username" autocomplete="username" autocapitalize="off"></div>
+        <div class="form-row"><label>Contraseña</label><input type="password" id="login-password" autocomplete="current-password"></div>
+        <button class="btn btn-primary btn-block" type="submit" id="login-submit" style="margin-top:6px">Ingresar</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== APP ======================== -->
+<div id="view-app">
+  <div class="topbar">
+    <div class="brand">
+      <!-- Logo H del Hospital Central Dr. Ramón Carrillo (SVG inline) -->
+      <!-- Dos óvalos diagonales (arriba-izq + abajo-der) + barra que los une + H blanca encima -->
+      <svg class="logo-mark" width="44" height="34" viewBox="0 0 60 50">
+        <g class="mark-fill">
+          <ellipse cx="16" cy="15" rx="13" ry="11"/>
+          <ellipse cx="44" cy="35" rx="13" ry="11"/>
+          <path d="M 9 19 L 37 39 L 51 31 L 23 11 Z"/>
+        </g>
+        <text x="30" y="34" font-family="Arial Black,Helvetica,sans-serif" font-size="22" font-weight="900" class="mark-letter" text-anchor="middle">H</text>
+      </svg>
+      <div class="logo-txt">
+        <span class="l1">HOSPITAL</span>
+        <span class="l2">CENTRAL</span>
+        <span class="l3">Dr. Ramón Carrillo</span>
+      </div>
+      <div class="sep"></div>
+      <div class="area">
+        <span class="name">BIOINGENIERÍA</span>
+        <span class="sub" id="topbar-sub">Cargando…</span>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="theme-toggle" id="theme-toggle" title="Cambiar diseño">🎨 <span id="theme-label">A</span></button>
+      <span class="user-chip" id="user-chip"></span>
+      <button class="theme-toggle" id="logout-btn" onclick="logout()" title="Cerrar sesión">🚪</button>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- DASHBOARD -->
+    <div id="view-dashboard" class="hidden">
+      <div class="section">
+        <h2>📦 Insumos más usados <span style="font-weight:400;font-size:12px;color:var(--muted)">(unidades de salida, histórico)</span></h2>
+        <div id="dash-top-insumos"><div class="center-loader"><span class="spin"></span></div></div>
+      </div>
+      <div class="section">
+        <h2>🏥 Servicio que más insumos consumió</h2>
+        <div id="dash-top-servicio"></div>
+      </div>
+      <div class="section">
+        <h2>📆 Comparativo anual de consumo (2021-2026)</h2>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:8px">Fuente: histórico cargado desde planilla de años anteriores. 2026 muestra lo transcurrido del año. Tocá una barra para ver el detalle de ese año.</p>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+          <div id="dash-anual" style="flex:1;min-width:280px;overflow-x:auto"></div>
+          <div id="dash-anual-year" style="flex:1;min-width:280px">
+            <div class="empty">Tocá una barra del gráfico para ver el detalle de ese año.</div>
+          </div>
+        </div>
+        <div id="dash-anual-tabla" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <!-- LISTA -->
+    <div id="view-list">
+      <div class="toolbar">
+        <div class="row">
+          <input type="text" id="search-box" placeholder="🔍 Buscar insumo, marca, ref, ubicación…">
+          <button class="btn btn-secondary" type="button" style="flex:0 0 auto" onclick="openBuscarFoto()">📷 Foto</button>
+        </div>
+        <div class="row">
+          <select id="filter-equipo"><option value="">Todos los equipos</option></select>
+          <select id="filter-stock">
+            <option value="">Todo el stock</option>
+            <option value="low">Solo bajo stock</option>
+            <option value="zero">Solo sin stock</option>
+            <option value="ok">Solo stock OK</option>
+          </select>
+        </div>
+      </div>
+      <div id="list-container"></div>
+    </div>
+
+    <!-- DETALLE -->
+    <div id="view-detail" class="hidden"></div>
+
+    <!-- ALERTAS -->
+    <div id="view-alerts" class="hidden">
+      <div class="section">
+        <h2>🚨 Bajo stock <span class="count" id="alerts-count">0</span></h2>
+        <div id="alerts-list"></div>
+      </div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div id="view-history" class="hidden">
+      <div class="toolbar">
+        <div class="row">
+          <input type="text" id="hist-search" placeholder="🔍 Buscar en historial…">
+        </div>
+        <div class="row">
+          <select id="hist-tipo">
+            <option value="">Todos los tipos</option>
+            <option value="IN">Entradas</option>
+            <option value="OUT">Salidas</option>
+            <option value="AJUSTE">Ajustes</option>
+          </select>
+        </div>
+      </div>
+      <div class="section" id="history-section">
+        <h2>📜 Historial de movimientos</h2>
+        <div id="history-list"></div>
+      </div>
+    </div>
+
+    <!-- CONSUMOS POR SERVICIO -->
+    <div id="view-consumos" class="hidden">
+      <div class="toolbar">
+        <div class="row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-primary cons-tab-btn" data-tab="lista">📋 Lista</button>
+            <button class="btn btn-sm btn-secondary cons-tab-btn" data-tab="grafico">📊 Gráficos</button>
+          </div>
+          <select id="cons-svc-filter" style="min-width:180px"><option value="">Todos los servicios</option></select>
+        </div>
+        <div class="row" id="cons-period-chips" style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-secondary cons-chip" data-period="30">Últimos 30 días</button>
+          <button class="btn btn-sm btn-secondary cons-chip" data-period="90">Últimos 90 días</button>
+          <button class="btn btn-sm btn-secondary cons-chip" data-period="month">Este mes</button>
+          <button class="btn btn-sm btn-secondary cons-chip" data-period="year">Este año</button>
+          <button class="btn btn-sm btn-primary cons-chip" data-period="all">Todo</button>
+        </div>
+      </div>
+
+      <!-- VISTA LISTA -->
+      <div id="cons-view-lista">
+        <div class="section">
+          <h2>📊 Resumen del período</h2>
+          <div id="cons-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px"></div>
+        </div>
+
+        <div class="section">
+          <h2>🏥 Gasto por servicio</h2>
+          <div id="cons-by-service"><div class="empty">Cargando…</div></div>
+        </div>
+
+        <div class="section">
+          <h2>📋 Detalle insumo × servicio</h2>
+          <div id="cons-detail" style="overflow-x:auto"></div>
+        </div>
+      </div>
+
+      <!-- VISTA GRÁFICOS -->
+      <div id="cons-view-grafico" class="hidden">
+        <div class="section">
+          <h2>📈 Evolución del gasto</h2>
+          <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+            <button class="btn btn-sm btn-primary cons-gran-btn" data-gran="month">📅 Mensual</button>
+            <button class="btn btn-sm btn-secondary cons-gran-btn" data-gran="year">📆 Anual</button>
+            <span style="margin-left:auto;font-size:12px;color:var(--muted,#6b7280);align-self:center">Eje Y: USD</span>
+          </div>
+          <div id="chart-evolution" style="width:100%;overflow-x:auto"></div>
+          <div id="chart-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:12px"></div>
+        </div>
+
+        <div class="section">
+          <h2>🥧 Distribución por servicio</h2>
+          <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:center">
+            <div id="chart-pie" style="flex:0 0 auto"></div>
+            <div id="chart-pie-legend" style="flex:1;min-width:200px"></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>🏆 Ranking de servicios (gasto USD)</h2>
+          <div id="chart-ranking"></div>
+        </div>
+
+        <div class="section">
+          <h2>📦 Top 10 insumos consumidos (USD)</h2>
+          <div id="chart-top-items"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PEDIDOS -->
+    <div id="view-pedidos" class="hidden">
+      <div class="alert alert-info">Podés generar la sugerencia por <strong>promedio anual</strong> (🔮), por <strong>consumo real</strong> registrado en la app (📈), o por <strong>promedio histórico</strong> de años anteriores (📅). Las cantidades sugeridas siempre son editables antes de guardar el pedido.</div>
+      <div class="toolbar">
+        <div class="row">
+          <button class="btn btn-primary btn-sm" onclick="generarSugerencia()">🔮 Generar sugerencia</button>
+          <button class="btn btn-success btn-sm" onclick="guardarPedido()">💾 Guardar pedido</button>
+          <button class="btn btn-secondary btn-sm" onclick="limpiarPedido()">🗑️ Limpiar</button>
+        </div>
+        <div class="row">
+          <select id="comp-dias" title="Período de consumo a analizar">
+            <option value="30">Consumo últimos 30 días</option>
+            <option value="60">Consumo últimos 60 días</option>
+            <option value="90" selected>Consumo últimos 90 días</option>
+            <option value="180">Consumo últimos 6 meses</option>
+            <option value="365">Consumo último año</option>
+          </select>
+          <select id="comp-meses" title="Cuántos meses de stock querés cubrir">
+            <option value="1">Cubrir 1 mes</option>
+            <option value="2" selected>Cubrir 2 meses</option>
+            <option value="3">Cubrir 3 meses</option>
+            <option value="6">Cubrir 6 meses</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="generarSugerenciaReal()">📈 Por consumo real</button>
+        </div>
+        <div class="row">
+          <select id="hist-anios" title="Cuántos años hacia atrás promediar">
+            <option value="3">Últimos 3 años</option>
+            <option value="5" selected>Últimos 5 años</option>
+            <option value="6">Todo el histórico</option>
+          </select>
+          <input type="number" id="hist-margen" value="10" min="0" max="200" step="5" title="Margen extra sobre el promedio" style="width:70px">
+          <span style="align-self:center;font-size:13px;color:var(--muted)">% margen</span>
+          <button class="btn btn-primary btn-sm" onclick="generarSugerenciaHistorica()">📅 Por promedio histórico</button>
+        </div>
+      </div>
+      <div class="section" id="compras-real" style="display:none">
+        <h2>🛒 Compras y consumo del período <span class="count" id="compras-count">0</span></h2>
+        <div style="overflow-x:auto">
+          <table id="compras-tabla" style="width:100%;border-collapse:collapse;font-size:12.5px"></table>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin-top:8px">
+          Consumo = salidas registradas · Comprado = entradas registradas · A comprar = consumo mensual × meses a cubrir − stock actual.
+        </p>
+      </div>
+      <div class="section">
+        <h2>🛒 Compras realizadas <span class="count" id="compras-hist-count">0</span></h2>
+        <div class="form-row" style="margin-bottom:8px">
+          <input type="text" id="compras-buscar" placeholder="🔍 Filtrar por insumo, proveedor o comprobante…">
+        </div>
+        <div style="overflow-x:auto">
+          <table id="compras-hist-tabla" style="width:100%;border-collapse:collapse;font-size:12.5px"></table>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin-top:8px">
+          Se arma solo con cada Entrada que registrás: comprobante (R/F/OC), fecha del comprobante y proveedor.
+        </p>
+      </div>
+      <div class="section" id="pedido-draft">
+        <h2>📝 Pedido en preparación <span class="count" id="pedido-count">0</span></h2>
+        <div id="pedido-items"><div class="empty">Tocá "Generar sugerencia" para empezar.</div></div>
+        <div id="pedido-totales" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-weight:600;font-size:14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <span>Total USD: <span id="ped-tot-usd">USD 0</span></span>
+          <span>Total ARS: <span id="ped-tot-ars">AR$ 0</span></span>
+        </div>
+      </div>
+      <div class="section">
+        <h2>📚 Historial de pedidos <span class="count" id="pedidos-hist-count">0</span></h2>
+        <div id="pedidos-historial"></div>
+      </div>
+    </div>
+
+    <!-- ARMARIOS -->
+    <div id="view-armarios" class="hidden">
+      <!-- Grilla: un cuadro por armario -->
+      <div id="armarios-grid-view">
+        <div class="alert alert-info">
+          Tocá un armario para ver qué hay en cada estante. La ubicación de cada insumo se carga como
+          <strong>número + letra</strong> (ej. <strong>2K</strong> = estante 2 del armario K).
+        </div>
+        <div id="arm-sin-ubicacion-banner"></div>
+        <div class="gallery" id="armarios-grid"></div>
+      </div>
+
+      <!-- Detalle de un armario -->
+      <div id="armario-detail-view" class="hidden">
+        <button class="btn btn-secondary btn-sm" onclick="closeArmarioDetail()">← Volver a armarios</button>
+        <div id="armario-detail-header"></div>
+        <div class="toolbar">
+          <input type="text" id="arm-search" placeholder="🔍 Buscar insumo en este armario…" oninput="renderArmarioDetailBody()">
+        </div>
+        <div id="armario-detail-body"></div>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <div id="view-config" class="hidden">
+      <div class="section">
+        <h2>💵 Tipo de cambio</h2>
+        <div class="form-row"><label>ARS por 1 USD</label><input type="number" id="cfg-fx" step="1"></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">Se usa para convertir precios y totales de pedidos.</p>
+      </div>
+      <div class="section">
+        <h2>⚠️ Umbral de stock crítico</h2>
+        <div class="form-row"><label>% del promedio anual (por debajo se marca como crítico)</label><input type="number" id="cfg-threshold" step="5" min="0" max="100"></div>
+      </div>
+      <div class="section">
+        <h2>🏥 Servicios <span class="count" id="svc-count">0</span></h2>
+        <div id="svc-list"></div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="agregarServicio()">➕ Agregar servicio</button>
+      </div>
+      <div class="section" style="text-align:center">
+        <button class="btn btn-primary btn-block" onclick="saveConfig()">💾 Guardar configuración</button>
+      </div>
+
+      <div class="section">
+        <h2>👤 Usuarios <span class="count" id="users-count">0</span></h2>
+        <div id="users-list"></div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="openNewUser()">➕ Nuevo usuario</button>
+        <p style="font-size:11px;color:var(--muted);margin-top:8px">
+          Los usuarios con rol <strong>Administrador</strong> pueden editar/eliminar movimientos, editar o borrar insumos,
+          reiniciar contadores, importar/exportar y gestionar usuarios. Los de rol <strong>Usuario general</strong> solo
+          pueden registrar entradas, salidas y ajustes de stock.
+        </p>
+      </div>
+
+      <div class="section">
+        <h2>📥 Importar / Exportar</h2>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-secondary" onclick="exportBackup()">💾 Exportar backup (JSON)</button>
+          <label class="btn btn-secondary" style="cursor:pointer">
+            <input type="file" id="import-backup-file" accept=".json" style="display:none" onchange="importBackup(event)">
+            📂 Importar backup (JSON)
+          </label>
+          <label class="btn btn-secondary" style="cursor:pointer">
+            <input type="file" id="import-xlsx-file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(event)">
+            📥 Importar desde Excel (.xlsx)
+          </label>
+          <button class="btn btn-secondary" onclick="downloadPlantilla()">📄 Descargar plantilla Excel</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px">El backup incluye insumos, movimientos, pedidos y configuración.</p>
+      </div>
+
+      <div class="section">
+        <h2>🔢 Reiniciar contadores</h2>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          Pone en <strong>0</strong> el stock de todos los insumos. Se conserva el catálogo (nombres, fotos, precios, ubicaciones, servicios, configuración).
+          Útil cuando arrancás a usar el sistema con stock real después de la etapa de prueba.
+        </p>
+        <button class="btn btn-danger btn-block" onclick="resetStockCero()">🔄 Reiniciar stock (todo a 0)</button>
+        <p style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center">
+          ⚠ Tip: exportá un backup antes por las dudas.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <button class="fab" onclick="openCreate()" title="Nuevo insumo" id="fab-add">＋</button>
+
+  <nav class="bottom-nav" id="bottom-nav">
+    <button data-nav="dashboard"><span class="ico">📊</span><span>Dashboard</span></button>
+    <button data-nav="list" class="active"><span class="ico">📦</span><span>Insumos</span></button>
+    <button data-nav="alerts"><span class="ico" style="position:relative">⚠️<span class="dot"></span></span><span>Alertas</span></button>
+    <button data-nav="history"><span class="ico">📜</span><span>Historial</span></button>
+    <button data-nav="consumos"><span class="ico">💰</span><span>Consumos</span></button>
+    <button data-nav="pedidos"><span class="ico">📝</span><span>Pedidos</span></button>
+    <button data-nav="armarios"><span class="ico">🗄️</span><span>Armarios</span></button>
+    <button data-nav="config" class="admin-only"><span class="ico">⚙️</span><span>Config</span></button>
+  </nav>
+</div>
+
+<!-- Modals -->
+<div class="modal-bg" id="modal-form">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="form-title">Nuevo insumo</h3>
+      <button class="modal-close" onclick="closeModal('modal-form')" type="button">×</button>
+    </div>
+    <form id="form-insumo" onsubmit="return false">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-row full"><label>Nombre *</label><input type="text" id="f-nombre" required></div>
+          <div class="form-row"><label>Stock</label><input type="number" id="f-stock" min="0" value="0"></div>
+          <div class="form-row"><label>Stock mínimo</label><input type="number" id="f-stock-min" min="0" value="1"></div>
+          <div class="form-row"><label>Marca</label><input type="text" id="f-marca"></div>
+          <div class="form-row"><label>Equipo médico</label><input type="text" id="f-equipo"></div>
+          <div class="form-row full"><label>Referencia / URL</label><input type="text" id="f-ref"></div>
+          <div class="form-row full"><label>Ubicación</label><input type="text" id="f-ubic"></div>
+          <div class="form-row"><label>Prom. anual</label><input type="number" id="f-prom" min="0"></div>
+          <div class="form-row"><label>Solicitud compra</label><input type="number" id="f-sol" min="0"></div>
+          <div class="form-row"><label>Moneda</label>
+            <select id="f-moneda"><option value="">—</option><option value="USD">USD</option><option value="ARS">ARS</option></select>
+          </div>
+          <div class="form-row"><label>Precio unitario</label><input type="number" id="f-precio" step="0.01" min="0"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" type="button" onclick="closeModal('modal-form')">Cancelar</button>
+        <button class="btn btn-danger admin-only" type="button" id="form-delete" onclick="deleteCurrent()" style="margin-right:auto">Borrar</button>
+        <button class="btn btn-primary" type="submit" id="form-save">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-mov">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h3 id="mov-title">Movimiento</h3>
+      <button class="modal-close" onclick="closeModal('modal-mov')" type="button">×</button>
+    </div>
+    <form id="mov-form" onsubmit="return false">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-row full"><label>Insumo</label><input type="text" id="mov-insumo" disabled></div>
+          <div class="form-row"><label>Tipo</label>
+            <select id="mov-tipo">
+              <option value="IN">Entrada (sumar stock)</option>
+              <option value="OUT">Salida (restar)</option>
+              <option value="AJUSTE">Ajuste (setear stock)</option>
+            </select>
+          </div>
+          <div class="form-row full" id="mov-ajuste-lock-note" style="display:none;background:#fef3c7;color:#92400e;padding:8px 10px;border-radius:8px;font-size:12px">
+            ⚠ Este es un movimiento de <strong>Ajuste</strong>: no se puede convertir en Entrada/Salida, pero sí podés corregir el <strong>stock final</strong> las veces que necesites.
+          </div>
+          <div class="form-row"><label id="mov-qty-label">Cantidad</label><input type="number" id="mov-qty" min="1" value="1" oninput="updateMovStockPreview()"></div>
+          <div class="form-row full" id="mov-stock-preview" style="background:var(--bg);padding:7px 10px;border-radius:8px;font-size:12.5px;color:var(--label)"></div>
+          <div class="form-row full" style="position:relative">
+            <label>Servicio</label>
+            <input type="text" id="mov-svc" placeholder="Escribí o elegí un servicio…" autocomplete="off"
+              oninput="renderSvcDropdown(this.value)" onfocus="renderSvcDropdown(this.value)">
+            <div id="mov-svc-dropdown" class="svc-dropdown" style="display:none"></div>
+          </div>
+          <div class="form-row full"><label>Responsable</label><input type="text" id="mov-resp" placeholder="Nombre"></div>
+          <div class="form-row full" id="mov-pac-wrap"><label>Ubicación</label><input type="text" id="mov-pac" placeholder="Ej: Quirófano 2, Piso 3, Depósito…"></div>
+          <div class="form-row full" id="mov-motivo-wrap" style="display:none">
+            <label>Motivo de salida</label>
+            <select id="mov-motivo-salida" onchange="$('#mov-motivo-otro').style.display = this.value === 'Otro' ? '' : 'none'">
+              <option value="">— Seleccionar —</option>
+              <option value="Cambio por uno nuevo">Cambio por uno nuevo</option>
+              <option value="Entrega / Pedido por mail">Entrega / Pedido por mail</option>
+              <option value="Otro">Otro</option>
+            </select>
+            <input type="text" id="mov-motivo-otro" placeholder="Especificá el motivo" style="display:none;margin-top:8px">
+          </div>
+          <div class="form-row full" id="mov-comp-wrap"><label>Remito N° / Factura N°</label>
+            <div style="display:flex;gap:6px">
+              <select id="mov-comp-tipo" style="width:110px;padding:10px 8px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff">
+                <option value="">—</option>
+                <option value="R">R (Remito)</option>
+                <option value="F">F (Factura)</option>
+                <option value="OC">OC (Orden de compra)</option>
+              </select>
+              <select id="mov-comp-letra" style="width:64px;padding:10px 8px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff">
+                <option value="">—</option>
+                <option>A</option>
+                <option>B</option>
+                <option>C</option>
+                <option>X</option>
+              </select>
+              <input type="text" id="mov-comp-num" placeholder="0001-00012345" style="flex:1">
+            </div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <input type="text" id="mov-comp-prov" placeholder="Proveedor" style="flex:1.5;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px">
+              <input type="date" id="mov-comp-fecha" title="Fecha del comprobante" style="flex:1;padding:10px 8px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff">
+            </div>
+          </div>
+          <div class="form-row full"><label>Motivo / notas</label><textarea id="mov-notas"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-danger admin-only" type="button" id="mov-delete-btn" style="display:none;margin-right:auto" onclick="deleteMovFromModal()">🗑️ Eliminar movimiento</button>
+        <button class="btn btn-secondary" type="button" onclick="closeModal('modal-mov')">Cancelar</button>
+        <button class="btn btn-secondary" type="button" id="mov-nota-btn" style="display:none" onclick="generarNotaEntrega()">📄 Generar nota</button>
+        <button class="btn btn-primary" type="submit" id="mov-save">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-user">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h3 id="user-modal-title">Nuevo usuario</h3>
+      <button class="modal-close" onclick="closeModal('modal-user')" type="button">×</button>
+    </div>
+    <form id="user-form" onsubmit="return false">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-row full"><label>Usuario</label><input type="text" id="u-username" autocapitalize="off" autocomplete="off"></div>
+          <div class="form-row full"><label>Nombre</label><input type="text" id="u-nombre"></div>
+          <div class="form-row"><label>Rol</label>
+            <select id="u-rol">
+              <option value="usuario">Usuario general</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Activo</label>
+            <select id="u-activo">
+              <option value="true">Sí</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+          <div class="form-row full"><label id="u-pass-label">Contraseña</label><input type="password" id="u-password" placeholder="Contraseña" autocomplete="new-password"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" type="button" onclick="closeModal('modal-user')">Cancelar</button>
+        <button class="btn btn-primary" type="submit" id="user-save">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-armario">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <h3 id="armario-modal-title">Nuevo armario</h3>
+      <button class="modal-close" onclick="closeModal('modal-armario')" type="button">×</button>
+    </div>
+    <form id="armario-form" onsubmit="return false">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-row"><label>Letra</label><input type="text" id="a-letra" maxlength="10" style="text-transform:uppercase" placeholder="Ej: K"></div>
+          <div class="form-row full"><label>Nombre (opcional)</label><input type="text" id="a-nombre" placeholder="Ej: Cables y sensores"></div>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin-top:6px">
+          La foto se sube después, desde el detalle del armario.
+        </p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" type="button" onclick="closeModal('modal-armario')">Cancelar</button>
+        <button class="btn btn-primary" type="submit" id="armario-save">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-buscar-foto">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h3>📷 Buscar por foto</h3>
+      <button class="modal-close" onclick="closeModal('modal-buscar-foto')" type="button">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
+        Sacá o subí una foto del insumo y lo comparamos con las fotos cargadas para mostrarte los más parecidos y dónde están guardados.
+      </p>
+      <div id="bf-preview-wrap" style="text-align:center;margin-bottom:10px">
+        <img id="bf-preview" alt="" style="max-width:100%;max-height:220px;border-radius:10px;display:none;object-fit:contain">
+      </div>
+      <button class="btn btn-primary" type="button" style="width:100%" onclick="triggerBuscarFoto()">📷 Elegir / sacar foto</button>
+      <button class="btn btn-secondary" type="button" id="bf-submit-btn" style="width:100%;margin-top:8px;display:none" onclick="buscarPorFoto()">🔎 Buscar coincidencias</button>
+      <div id="bf-results" style="margin-top:14px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="photo-viewer" id="photo-viewer" onclick="closePhotoViewer()"><img id="photo-viewer-img" alt=""></div>
+
+<div class="toast" id="toast"></div>
+
+<input type="file" id="photo-input" accept="image/*" style="display:none">
+<input type="file" id="armario-photo-input" accept="image/*" style="display:none">
+<input type="file" id="buscar-foto-input" accept="image/*" capture="environment" style="display:none">
+
+<script>
+"use strict";
+
+const API_BASE = "";  // mismo origen que sirve el HTML
+const TOKEN_KEY = "stock_insumos_jwt";
+const USER_KEY = "stock_insumos_user";
+
+// ---------- Estado global ----------
+const state = {
+  token: localStorage.getItem(TOKEN_KEY) || null,
+  user: JSON.parse(localStorage.getItem(USER_KEY) || "null"),
+  insumos: [],
+  config: { fx_rate: 1200, threshold_pct: 20, servicios: [] },
+  current: null, // insumo abierto
+  alertCount: 0,
+  view: "list",
+  pedidoDraft: [],   // items en preparación
+  pedidos: [],       // historial de pedidos guardados
+  movLookup: {},     // id -> movimiento (para poder editar desde Historial o Detalle)
+  editingMovId: null, // != null cuando el modal de movimiento está en modo edición
+  armarios: [],      // armarios registrados (letra, nombre, foto)
+  armarioActual: null, // letra del armario abierto en la vista detalle
+};
+
+// ---------- Helpers UI ----------
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+function show(id) {
+  ["view-app", "view-login"].forEach(v => {
+    const el = document.getElementById(v);
+    if (el) el.classList.add("hidden");
+  });
+  document.getElementById(id).classList.remove("hidden");
+}
+function isAdmin() { return !!(state.user && state.user.rol === "admin"); }
+function showSubview(name) {
+  state.view = name;
+  ["dashboard", "list", "detail", "alerts", "history", "consumos", "pedidos", "armarios", "config"].forEach(v => {
+    const el = document.getElementById("view-" + v);
+    if (el) el.classList.toggle("hidden", v !== name);
+  });
+  $$("#bottom-nav button").forEach(b => b.classList.toggle("active", b.dataset.nav === name));
+  $("#fab-add").style.display = (name === "list") ? "flex" : "none";
+  $("#topbar-sub").textContent = name === "dashboard" ? "Dashboard" : `${(state.insumos || []).length} insumos cargados`;
+  if (name === "dashboard") loadDashboard();
+  if (name === "alerts") loadAlerts();
+  if (name === "history") loadHistory();
+  if (name === "consumos") loadConsumos();
+  if (name === "pedidos") loadPedidos();
+  if (name === "armarios") loadArmariosData();
+  if (name === "config") loadConfigView();
+}
+function toast(msg, kind = "") {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.className = "toast show " + kind;
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+function openModal(id) { document.getElementById(id).classList.add("active"); }
+function closeModal(id) { document.getElementById(id).classList.remove("active"); }
+function fmtNum(n) { if (n === null || n === undefined || n === "") return "—"; return Number(n).toLocaleString("es-AR"); }
+function fmtMoney(v, m) {
+  if (v === null || v === undefined || v === "") return "—";
+  return (m || "") + " " + Number(v).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+// El backend guarda las fechas de movimientos en UTC pero las manda sin la "Z" final,
+// así que el navegador las tomaba como si ya fueran hora local (por eso se veían 3hs
+// adelantadas respecto a la hora real de Argentina). _fixTZ le agrega la "Z" cuando
+// falta para que la conversión a hora local sea correcta.
+function _fixTZ(s) {
+  if (!s) return s;
+  if (/[zZ]|[+-]\d\d:?\d\d$/.test(s)) return s;  // ya trae zona horaria explícita
+  return s + "Z";
+}
+function fmtDate(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(_fixTZ(iso));
+    return d.toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch { return iso; }
+}
+function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+// ---------- Fetch wrapper ----------
+async function api(path, opts = {}) {
+  const headers = Object.assign({ "Accept": "application/json" }, opts.headers || {});
+  if (state.token) headers["Authorization"] = "Bearer " + state.token;
+  if (opts.body && !(opts.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+  let res;
+  try {
+    res = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+  } catch (e) {
+    throw new Error("Error de red: " + e.message);
+  }
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    state.token = null; state.user = null;
+    showLogin();
+    throw new Error("Sesión expirada");
+  }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const j = await res.json();
+      if (j && j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+    } catch {}
+    throw new Error(detail);
+  }
+  if (res.status === 204) return null;
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : res.text();
+}
+
+// ---------- Auth ----------
+function showLogin() {
+  show("view-login");
+  const errEl = $("#login-error");
+  if (errEl) errEl.style.display = "none";
+  const pass = $("#login-password");
+  if (pass) pass.value = "";
+  setTimeout(() => { const u = $("#login-username"); if (u) u.focus(); }, 50);
+}
+
+async function doLogin(ev) {
+  ev && ev.preventDefault();
+  const username = $("#login-username").value.trim();
+  const password = $("#login-password").value;
+  const errEl = $("#login-error");
+  errEl.style.display = "none";
+  if (!username || !password) {
+    errEl.textContent = "Completá usuario y contraseña";
+    errEl.style.display = "";
+    return;
+  }
+  const btn = $("#login-submit");
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Ingresando…';
+  try {
+    const res = await fetch(API_BASE + "/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || "Usuario o contraseña incorrectos");
+    state.token = data.access_token;
+    state.user = data.user;
+    localStorage.setItem(TOKEN_KEY, state.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(state.user));
+    await bootApp();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = "";
+  } finally {
+    btn.disabled = false; btn.textContent = "Ingresar";
+  }
+}
+
+function logout() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  state.token = null;
+  state.user = null;
+  showLogin();
+}
+
+// ---------- Carga inicial ----------
+async function bootApp() {
+  show("view-app");
+  const nombre = (state.user && (state.user.nombre || state.user.username)) || "";
+  $("#user-chip").textContent = nombre + (isAdmin() ? " · admin" : "");
+  applyRolePermissions();
+  initTheme();
+  showSubview("list");
+  await Promise.all([loadInsumos(), loadConfig(), refreshAlertBadge()]);
+}
+
+// Oculta/deshabilita acciones sensibles para usuarios que no son admin.
+function applyRolePermissions() {
+  document.body.classList.toggle("is-admin", isAdmin());
+  document.body.classList.toggle("is-usuario", !isAdmin());
+}
+
+// ---------- Theme switcher (A / D) ----------
+function initTheme() {
+  const saved = localStorage.getItem("stockTheme") || "A";
+  applyTheme(saved);
+  const btn = document.getElementById("theme-toggle");
+  if (btn) btn.addEventListener("click", () => {
+    const cur = document.body.getAttribute("data-theme") || "A";
+    applyTheme(cur === "A" ? "D" : "A");
+  });
+}
+function applyTheme(t) {
+  document.body.setAttribute("data-theme", t);
+  localStorage.setItem("stockTheme", t);
+  const lbl = document.getElementById("theme-label");
+  if (lbl) lbl.textContent = t;
+}
+
+async function loadConfig() {
+  try {
+    state.config = await api("/config");
+  } catch (e) {
+    console.warn("config:", e);
+  }
+}
+
+async function loadInsumos() {
+  $("#list-container").innerHTML = '<div class="center-loader"><span class="spin"></span></div>';
+  try {
+    state.insumos = await api("/insumos");
+  } catch (e) {
+    $("#list-container").innerHTML = `<div class="alert alert-danger">⚠ ${escapeHtml(e.message)}</div>`;
+    return;
+  }
+  // Llenar filtro de equipos.
+  const equipos = Array.from(new Set(state.insumos.map(x => x.equipo_medico).filter(Boolean))).sort();
+  const sel = $("#filter-equipo");
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Todos los equipos</option>' + equipos.map(e => `<option ${e === cur ? "selected" : ""}>${escapeHtml(e)}</option>`).join("");
+  if (state.view !== "dashboard") $("#topbar-sub").textContent = `${state.insumos.length} insumos cargados`;
+  renderList();
+}
+
+async function refreshAlertBadge() {
+  try {
+    const lows = await api("/insumos/bajo-stock");
+    state.alertCount = lows.length;
+    const navBtn = document.querySelector('#bottom-nav button[data-nav="alerts"]');
+    if (navBtn) navBtn.classList.toggle("has-alerts", state.alertCount > 0);
+  } catch {}
+}
+
+// ---------- LISTADO ----------
+function isLow(it) { return (it.stock || 0) <= (it.stock_minimo || 0); }
+function stockClass(it) {
+  if ((it.stock || 0) === 0) return "critical";
+  if (isLow(it)) return "warn";
+  return "";
+}
+function stockBadge(it) {
+  if ((it.stock || 0) === 0) return '<span class="badge">SIN STOCK</span>';
+  if (isLow(it)) return '<span class="badge warn">BAJO</span>';
+  return '<span class="badge ok">OK</span>';
+}
+
+function renderList() {
+  const q = $("#search-box").value.trim().toLowerCase();
+  const eq = $("#filter-equipo").value;
+  const sf = $("#filter-stock").value;
+  const items = state.insumos.filter(it => {
+    if (q) {
+      const hay = [it.nombre, it.marca, it.referencia, it.equipo_medico, it.ubicacion].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (eq && it.equipo_medico !== eq) return false;
+    if (sf === "low" && !isLow(it)) return false;
+    if (sf === "zero" && (it.stock || 0) !== 0) return false;
+    if (sf === "ok" && isLow(it)) return false;
+    return true;
+  });
+  const cont = $("#list-container");
+  if (!items.length) {
+    cont.innerHTML = '<div class="empty">No hay insumos que coincidan con los filtros.</div>';
+    return;
+  }
+  cont.innerHTML = '<div class="gallery">' + items.map(it => `
+    <div class="card ${stockClass(it)}" onclick="openDetail(${it.id})">
+      <div class="img-wrap">
+        ${it.foto_filename
+          ? `<img src="/insumos/${it.id}/foto" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'no-img',textContent:'📦'}))">`
+          : '<span class="no-img">📦</span>'}
+        ${stockBadge(it)}
+      </div>
+      <div class="body">
+        <div class="title">${escapeHtml(it.nombre)}</div>
+        <div class="meta">${escapeHtml(it.marca || "")}${it.equipo_medico ? " · " + escapeHtml(it.equipo_medico) : ""}</div>
+        <div class="stock-row">
+          <span class="stock-val">${fmtNum(it.stock)}</span>
+          <span class="price">${it.precio_unit_valor ? fmtMoney(it.precio_unit_valor, it.moneda || "") : ""}</span>
+        </div>
+      </div>
+    </div>`).join("") + "</div>";
+}
+
+// ---------- DETALLE ----------
+async function openDetail(id) {
+  state.current = state.insumos.find(x => x.id === id) || null;
+  if (!state.current) return;
+  showSubview("detail");
+  renderDetail();
+  // Cargar movimientos del insumo en background.
+  try {
+    const movs = await api(`/insumos/${id}/movimientos`);
+    state.current._movs = movs;
+    if (state.view === "detail") renderDetail();
+  } catch (e) { console.warn(e); }
+}
+
+function renderDetail() {
+  const it = state.current;
+  if (!it) return;
+  const lowBanner = isLow(it)
+    ? `<div class="alert ${(it.stock||0)===0?"alert-danger":"alert-warn"}">⚠ ${(it.stock||0)===0?"Sin stock":"Stock por debajo del mínimo"} (mín: ${fmtNum(it.stock_minimo)})</div>`
+    : "";
+  const movs = it._movs || [];
+  $("#view-detail").innerHTML = `
+    <button class="btn btn-secondary btn-sm" onclick="showSubview('list')">← Volver</button>
+    <h2 style="margin:12px 0 6px;font-size:18px">${escapeHtml(it.nombre)}</h2>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${escapeHtml(it.marca || "")}${it.equipo_medico ? " · " + escapeHtml(it.equipo_medico) : ""}</div>
+    ${lowBanner}
+    <div class="detail-photo">
+      ${it.foto_filename
+        ? `<img src="/insumos/${it.id}/foto?v=${Date.now()}" alt="" onclick="openPhotoViewer(this.src)">`
+        : '<span class="no-img" style="font-size:60px;color:#9ca3af">📦</span>'}
+      <button class="upload-btn" onclick="triggerPhotoUpload()">📷 ${it.foto_filename ? "Cambiar foto" : "Subir foto"}</button>
+    </div>
+    <div class="detail-info">
+      <div class="field"><label>Stock actual</label><div class="val" style="font-weight:700;font-size:20px;color:${isLow(it)?"var(--danger)":"var(--teal)"}">${fmtNum(it.stock)}</div></div>
+      <div class="field"><label>Stock mínimo</label><div class="val">${fmtNum(it.stock_minimo)}</div></div>
+      <div class="field"><label>Prom. anual</label><div class="val">${fmtNum(it.prom_anual)}</div></div>
+      <div class="field"><label>Solicitud compra</label><div class="val">${fmtNum(it.solicitud_compra)}</div></div>
+      <div class="field full"><label>Ubicación</label><div class="val">${escapeHtml(it.ubicacion || "—")}</div></div>
+      <div class="field full"><label>Referencia</label><div class="val">${it.referencia ? `<a href="${escapeHtml(it.referencia)}" target="_blank" rel="noopener">${escapeHtml(it.referencia)}</a>` : "—"}</div></div>
+      <div class="field"><label>Moneda</label><div class="val">${escapeHtml(it.moneda || "—")}</div></div>
+      <div class="field"><label>Precio unit.</label><div class="val">${fmtMoney(it.precio_unit_valor, it.moneda || "")}</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <button class="btn btn-success" onclick="openMov('IN')">＋ Entrada</button>
+      <button class="btn btn-warn" onclick="openMov('OUT')">－ Salida</button>
+      <button class="btn btn-secondary admin-only" onclick="openMov('AJUSTE')">⚙ Ajuste de stock</button>
+      <button class="btn btn-primary admin-only" onclick="openEdit()">✏ Editar insumo</button>
+      <button class="btn btn-danger admin-only" style="grid-column:1/-1" onclick="resetContador()">🔄 Reiniciar contador (stock a 0, sin registrar ajuste)</button>
+    </div>
+
+    <div class="section">
+      <h2>📜 Últimos movimientos <span class="count">${movs.length}</span></h2>
+      ${movs.length === 0 ? '<div class="empty">Sin movimientos registrados.</div>' : movs.map(m => renderMovementRow(m, false)).join("")}
+    </div>
+  `;
+}
+
+function renderMovementRow(m, showInsumo = true) {
+  state.movLookup[m.id] = m;
+  const tipoLabel = { IN: "Entrada", OUT: "Salida", AJUSTE: "Ajuste" }[m.tipo] || m.tipo;
+  const tipoCls = { IN: "in", OUT: "out", AJUSTE: "aj" }[m.tipo] || "";
+  const sign = m.tipo === "IN" ? "+" : (m.tipo === "OUT" ? "−" : "=");
+  const meta = [];
+  if (m.servicio) meta.push("🏥 " + escapeHtml(m.servicio));
+  if (m.responsable) meta.push("👤 " + escapeHtml(m.responsable));
+  if (m.paciente) meta.push("📍 " + escapeHtml(m.paciente));
+  if (m.comprobante) meta.push("🧾 " + escapeHtml(m.comprobante) + (m.comprobante_fecha ? " (" + fmtFechaCorta(m.comprobante_fecha) + ")" : ""));
+  if (m.proveedor) meta.push("🏭 " + escapeHtml(m.proveedor));
+  if (m.usuario) meta.push("✍ " + escapeHtml(m.usuario));
+  return `
+    <div class="movement-row">
+      <div class="ico ${tipoCls}">${m.tipo === "IN" ? "↓" : m.tipo === "OUT" ? "↑" : "≡"}</div>
+      <div class="body">
+        <div class="top">
+          <strong>${showInsumo ? escapeHtml((m.insumo_nombre || "—").toUpperCase()) : tipoLabel}</strong>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span class="qty pill ${tipoCls}">${sign} ${fmtNum(m.cantidad)}</span>
+            <button type="button" class="btn btn-sm btn-secondary admin-only" style="padding:2px 7px" title="Editar movimiento" onclick="openEditMov(${m.id})">✏️</button>
+          </span>
+        </div>
+        ${showInsumo ? `<div style="font-size:12px"><span class="pill ${tipoCls}">${tipoLabel}</span></div>` : ""}
+        <div class="meta">
+          ${fmtDate(m.fecha)}
+          ${meta.length ? " · " + meta.join(" · ") : ""}
+          ${m.notas ? `<div style="margin-top:2px">📝 ${escapeHtml(m.notas)}</div>` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ---------- ALERTAS ----------
+async function loadAlerts() {
+  const el = $("#alerts-list");
+  el.innerHTML = '<div class="center-loader"><span class="spin"></span></div>';
+  try {
+    const lows = await api("/insumos/bajo-stock");
+    state.alertCount = lows.length;
+    $("#alerts-count").textContent = lows.length;
+    if (!lows.length) {
+      el.innerHTML = '<div class="alert alert-ok">✓ Todo en orden — ningún insumo bajo el mínimo.</div>';
+      document.querySelector('#bottom-nav button[data-nav="alerts"]').classList.remove("has-alerts");
+      return;
+    }
+    el.innerHTML = '<div class="gallery">' + lows.map(it => `
+      <div class="card ${stockClass(it)}" onclick="openDetail(${it.id})">
+        <div class="img-wrap">
+          ${it.foto_filename
+            ? `<img src="/insumos/${it.id}/foto" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'no-img',textContent:'📦'}))">`
+            : '<span class="no-img">📦</span>'}
+          ${stockBadge(it)}
+        </div>
+        <div class="body">
+          <div class="title">${escapeHtml(it.nombre)}</div>
+          <div class="meta">mín: ${fmtNum(it.stock_minimo)}</div>
+          <div class="stock-row">
+            <span class="stock-val">${fmtNum(it.stock)}</span>
+            <span class="price">${escapeHtml(it.marca || "")}</span>
+          </div>
+        </div>
+      </div>
+    `).join("") + "</div>";
+  } catch (e) {
+    el.innerHTML = `<div class="alert alert-danger">⚠ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ---------- DASHBOARD ----------
+function _barChartHtml(rows, { valueFmt = (v) => v, colorFn = () => "#0f766e", subtitleFn = null } = {}) {
+  // rows: [{label, value}], barra horizontal simple con ancho proporcional al máximo.
+  if (!rows.length) return '<div class="empty">Sin datos todavía.</div>';
+  const max = Math.max(...rows.map(r => r.value), 1);
+  return rows.map((r, i) => {
+    const pct = Math.max(2, Math.round((r.value / max) * 100));
+    return `
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px;gap:8px">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i + 1}. ${escapeHtml(r.label)}</span>
+          <span style="font-weight:700;white-space:nowrap;color:${colorFn(i)}">${valueFmt(r.value)}</span>
+        </div>
+        <div style="background:#f3f4f6;border-radius:6px;height:14px;overflow:hidden">
+          <div style="background:${colorFn(i)};height:100%;width:${pct}%"></div>
+        </div>
+        ${subtitleFn ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${subtitleFn(r)}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+async function loadDashboard() {
+  $("#dash-top-insumos").innerHTML = '<div class="center-loader"><span class="spin"></span></div>';
+  $("#dash-top-servicio").innerHTML = '<div class="center-loader"><span class="spin"></span></div>';
+  $("#dash-anual").innerHTML = '<div class="center-loader"><span class="spin"></span></div>';
+  try {
+    const movs = await api("/movimientos?tipo=OUT&limit=5000");
+    renderDashTopInsumos(movs);
+    renderDashTopServicio(movs);
+  } catch (e) {
+    $("#dash-top-insumos").innerHTML = `<div class="alert alert-danger">⚠ ${escapeHtml(e.message)}</div>`;
+    $("#dash-top-servicio").innerHTML = "";
+  }
+  try {
+    const hist = await (await fetch("/static/data/consumo_historico.json")).json();
+    renderDashAnual(hist);
+  } catch (e) {
+    $("#dash-anual").innerHTML = '<div class="empty">No se pudo cargar el histórico anual.</div>';
+  }
+}
+
+function renderDashTopInsumos(movs) {
+  const porInsumo = {};
+  movs.forEach(m => {
+    const key = m.insumo_nombre || ("#" + m.insumo_id);
+    porInsumo[key] = (porInsumo[key] || 0) + (Number(m.cantidad) || 0);
+  });
+  const rows = Object.entries(porInsumo)
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+  $("#dash-top-insumos").innerHTML = _barChartHtml(rows, {
+    valueFmt: v => fmtNum(v) + " u",
+    colorFn: () => "#0f766e",
+  });
+}
+
+function renderDashTopServicio(movs) {
+  const porServicio = {};
+  movs.forEach(m => {
+    if (!m.servicio) return;
+    const c = _consMovCost(m);
+    if (!porServicio[m.servicio]) porServicio[m.servicio] = { qty: 0, usd: 0, ars: 0 };
+    porServicio[m.servicio].qty += Number(m.cantidad) || 0;
+    porServicio[m.servicio].usd += c.usd;
+    porServicio[m.servicio].ars += c.ars;
+  });
+  const rows = Object.entries(porServicio)
+    .map(([label, v]) => ({ label, value: v.qty, usd: v.usd, ars: v.ars }))
+    .sort((a, b) => b.value - a.value);
+  $("#dash-top-servicio").innerHTML = _barChartHtml(rows, {
+    valueFmt: v => fmtNum(v) + " u",
+    colorFn: () => "#0284c7",
+    subtitleFn: r => `Gastó ${_fmtMoneyShort(r.usd, "USD")} · ${_fmtMoneyShort(r.ars, "ARS")}`,
+  });
+}
+
+let _dashHist = null;      // último histórico cargado, para poder redibujar al elegir un año
+let _dashHistYear = null;  // año actualmente seleccionado
+
+function renderDashAnual(hist) {
+  _dashHist = hist;
+  const years = hist.years || [];
+  const items = hist.items || [];
+  const totalsPorAno = years.map(y => items.reduce((s, it) => s + (Number(it[y]) || 0), 0));
+  const maxY = Math.max(...totalsPorAno, 1);
+
+  const W = Math.max(420, years.length * 80 + 60);
+  const H = 260;
+  const ML = 44, MR = 16, MT = 16, MB = 40;
+  const plotW = W - ML - MR, plotH = H - MT - MB;
+  const barW = Math.min(48, (plotW / years.length) * 0.6);
+
+  const ticks = 4;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;font-family:inherit">`;
+  for (let i = 0; i <= ticks; i++) {
+    const tv = (maxY * i) / ticks;
+    const y = MT + plotH - (tv / maxY) * plotH;
+    svg += `<line x1="${ML}" y1="${y}" x2="${ML + plotW}" y2="${y}" stroke="#e5e7eb" stroke-width="1"/>`;
+    svg += `<text x="${ML - 6}" y="${y + 4}" font-size="10" text-anchor="end" fill="#6b7280">${Math.round(tv)}</text>`;
+  }
+  years.forEach((y, i) => {
+    const cx = ML + (plotW / years.length) * (i + 0.5);
+    const val = totalsPorAno[i];
+    const barH = (val / maxY) * plotH;
+    const esActual = y === String(new Date().getFullYear());
+    const esSeleccionado = y === _dashHistYear;
+    const color = esSeleccionado ? "#dc2626" : (esActual ? "#f59e0b" : "#0f766e");
+    svg += `<g onclick="selectDashAnualYear('${y}')" style="cursor:pointer">`;
+    svg += `<rect x="${cx - barW / 2 - 3}" y="${MT}" width="${barW + 6}" height="${plotH}" fill="transparent"/>`;
+    svg += `<rect x="${cx - barW / 2}" y="${MT + plotH - barH}" width="${barW}" height="${barH}" fill="${color}" rx="3"/>`;
+    svg += `<text x="${cx}" y="${MT + plotH - barH - 6}" font-size="11" text-anchor="middle" fill="#111" font-weight="700">${val}</text>`;
+    svg += `<text x="${cx}" y="${H - 14}" font-size="11" text-anchor="middle" fill="${esSeleccionado ? "#dc2626" : "#374151"}" font-weight="${esSeleccionado ? "700" : "400"}">${y}${esActual ? " *" : ""}</text>`;
+    svg += `</g>`;
+  });
+  svg += `</svg>`;
+  $("#dash-anual").innerHTML = svg;
+
+  renderDashAnualTablaTotal(hist);
+  if (_dashHistYear) renderDashAnualYearDetail(_dashHistYear);
+}
+
+function selectDashAnualYear(year) {
+  _dashHistYear = (_dashHistYear === year) ? null : year;  // tocar de nuevo la misma barra la deselecciona
+  if (_dashHist) renderDashAnual(_dashHist);
+}
+
+function renderDashAnualYearDetail(year) {
+  const cont = $("#dash-anual-year");
+  if (!_dashHist) { cont.innerHTML = '<div class="empty">Sin datos.</div>'; return; }
+  const todos = (_dashHist.items || [])
+    .map(it => ({ label: it.nombre, value: Number(it[year]) || 0 }))
+    .filter(r => r.value > 0)
+    .sort((a, b) => b.value - a.value);
+  const totalUnidades = todos.reduce((s, r) => s + r.value, 0);
+  const rows = todos.slice(0, 10);
+  const restoCant = todos.length - rows.length;
+  const restoUnidades = totalUnidades - rows.reduce((s, r) => s + r.value, 0);
+
+  const titulo = `<h3 style="font-size:13px;margin-bottom:2px">📦 Insumos consumidos en ${year}${todos.length ? "" : " — sin datos"}</h3>`;
+  const resumen = todos.length
+    ? `<p style="font-size:11px;color:var(--muted);margin-bottom:10px">Total ${year}: <strong>${fmtNum(totalUnidades)} u</strong> en ${todos.length} insumo${todos.length === 1 ? "" : "s"} distintos.</p>`
+    : "";
+  const nota = restoCant > 0
+    ? `<p style="font-size:11px;color:var(--muted);margin-top:6px">+ ${restoCant} insumo${restoCant === 1 ? "" : "s"} más con ${fmtNum(restoUnidades)} u en total (no se listan individualmente, fuera del top 10).</p>`
+    : "";
+  cont.innerHTML = titulo + resumen + _barChartHtml(rows, { valueFmt: v => fmtNum(v) + " u", colorFn: () => "#dc2626" }) + nota;
+}
+
+function renderDashAnualTablaTotal(hist) {
+  const years = hist.years || [];
+  const items = hist.items || [];
+  const topHist = items.slice(0, 8);
+  const tabla = `
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:520px">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--line)">Insumo</th>
+          ${years.map(y => `<th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--line);${y === _dashHistYear ? "color:#dc2626" : ""}">${y}</th>`).join("")}
+          <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--line)">Total</th>
+        </tr></thead>
+        <tbody>
+          ${topHist.map(it => `
+            <tr>
+              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;white-space:normal">${escapeHtml(it.nombre)}</td>
+              ${years.map(y => `<td style="padding:5px 8px;text-align:right;border-bottom:1px solid #f3f4f6;${y === _dashHistYear ? "color:#dc2626;font-weight:700" : ""}">${it[y] || "—"}</td>`).join("")}
+              <td style="padding:5px 8px;text-align:right;border-bottom:1px solid #f3f4f6;font-weight:700;color:#0f766e">${it.total}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      <p style="font-size:11px;color:var(--muted);margin-top:6px">Top ${topHist.length} insumos históricos por unidades totales 2021-2026. * año en curso.</p>
+    </div>
+  `;
+  $("#dash-anual-tabla").innerHTML = tabla;
+}
+
+// ---------- HISTORIAL ----------
+let _allMovs = [];
+async function loadHistory() {
+  const el = $("#history-list");
+  el.innerHTML = '<div class="center-loader"><span class="spin"></span></div>';
+  try {
+    _allMovs = await api("/movimientos?limit=300");
+    renderHistory();
+  } catch (e) {
+    el.innerHTML = `<div class="alert alert-danger">⚠ ${escapeHtml(e.message)}</div>`;
+  }
+}
+function renderHistory() {
+  const q = $("#hist-search").value.trim().toLowerCase();
+  const tipo = $("#hist-tipo").value;
+  const items = _allMovs.filter(m => {
+    if (tipo && m.tipo !== tipo) return false;
+    if (q) {
+      const hay = [m.insumo_nombre, m.responsable, m.paciente, m.notas, m.servicio, m.usuario, m.comprobante, m.proveedor].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const el = $("#history-list");
+  if (!items.length) { el.innerHTML = '<div class="empty">Sin movimientos.</div>'; return; }
+  el.innerHTML = items.map(m => renderMovementRow(m, true)).join("");
+}
+
+// ---------- CONSUMOS POR SERVICIO ----------
+let _allMovsCons = [];
+let _consPeriod = "all";
+
+async function loadConsumos() {
+  // popular el filtro de servicios
+  const sel = $("#cons-svc-filter");
+  const prev = sel.value;
+  const svcs = (state.config.servicios || []).slice();
+  sel.innerHTML = '<option value="">Todos los servicios</option>' + _serviciosOptionsHtml(svcs);
+  sel.value = prev;
+
+  $("#cons-by-service").innerHTML = '<div class="center-loader"><span class="spin"></span></div>';
+  $("#cons-detail").innerHTML = "";
+  $("#cons-kpis").innerHTML = "";
+  try {
+    // Traer hasta 5000 movimientos. Si la API soporta otro limit, usar ese.
+    _allMovsCons = await api("/movimientos?limit=5000");
+    renderConsumos();
+  } catch (e) {
+    $("#cons-by-service").innerHTML = `<div class="alert alert-danger">⚠ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function _consPeriodRange(p) {
+  const now = new Date();
+  let start = null;
+  if (p === "30") { start = new Date(now); start.setDate(start.getDate() - 30); }
+  else if (p === "90") { start = new Date(now); start.setDate(start.getDate() - 90); }
+  else if (p === "month") { start = new Date(now.getFullYear(), now.getMonth(), 1); }
+  else if (p === "year") { start = new Date(now.getFullYear(), 0, 1); }
+  return start;
+}
+
+function _consMovCost(m) {
+  // devuelve {usd, ars} para el movimiento m según su precio_unit_valor + moneda
+  const fx = state.config.fx_rate || 1200;
+  const pr = Number(m.precio_unit_valor) || 0;
+  const q = Number(m.cantidad) || 0;
+  if (!pr || !q) return { usd: 0, ars: 0 };
+  if (m.moneda === "USD") return { usd: pr * q, ars: pr * q * fx };
+  if (m.moneda === "ARS") return { usd: (pr * q) / fx, ars: pr * q };
+  return { usd: 0, ars: 0 };
+}
+
+function _fmtMoneyShort(n, cur) {
+  const v = Math.round(Number(n) || 0);
+  return (cur === "USD" ? "USD " : "AR$ ") + v.toLocaleString("es-AR");
+}
+
+function renderConsumos() {
+  const startDate = _consPeriodRange(_consPeriod);
+  const svcFilter = ($("#cons-svc-filter").value || "").trim();
+
+  // filtrar: solo OUT (salidas), con servicio, en el período seleccionado
+  const movs = _allMovsCons.filter(m => {
+    if (m.tipo !== "OUT") return false;
+    if (!m.servicio) return false;
+    if (svcFilter && m.servicio !== svcFilter) return false;
+    if (startDate) {
+      const d = new Date(_fixTZ(m.fecha));
+      if (d < startDate) return false;
+    }
+    return true;
+  });
+
+  // KPIs
+  let totUSD = 0, totARS = 0;
+  const itemsSet = new Set();
+  const byService = {}; // svc -> {usd, ars, movs, items:Set, byItem:{nombre->{qty,usd,ars,id}}}
+  movs.forEach(m => {
+    const c = _consMovCost(m);
+    totUSD += c.usd; totARS += c.ars;
+    itemsSet.add(m.insumo_id);
+    const svc = m.servicio;
+    if (!byService[svc]) byService[svc] = { usd: 0, ars: 0, movs: 0, items: new Set(), byItem: {} };
+    const s = byService[svc];
+    s.usd += c.usd; s.ars += c.ars; s.movs += 1; s.items.add(m.insumo_id);
+    const key = m.insumo_nombre || ("#" + m.insumo_id);
+    if (!s.byItem[key]) s.byItem[key] = { nombre: key, id: m.insumo_id, qty: 0, usd: 0, ars: 0 };
+    s.byItem[key].qty += Number(m.cantidad) || 0;
+    s.byItem[key].usd += c.usd; s.byItem[key].ars += c.ars;
+  });
+
+  // ordenar servicios por gasto USD desc
+  const svcEntries = Object.entries(byService).sort((a, b) => b[1].usd - a[1].usd);
+
+  const topSvc = svcEntries.length ? svcEntries[0][0] : "—";
+  const topSvcUSD = svcEntries.length ? svcEntries[0][1].usd : 0;
+
+  // KPI cards
+  const kpis = [
+    { label: "Gasto total (USD)", val: _fmtMoneyShort(totUSD, "USD"), cls: "" },
+    { label: "Gasto total (ARS)", val: _fmtMoneyShort(totARS, "ARS"), cls: "" },
+    { label: "Salidas registradas", val: movs.length.toLocaleString("es-AR"), cls: "" },
+    { label: "Insumos distintos", val: itemsSet.size.toLocaleString("es-AR"), cls: "" },
+    { label: "Servicio top", val: escapeHtml(topSvc) + (topSvcUSD ? ` <span style="font-size:11px;color:var(--muted)">(${_fmtMoneyShort(topSvcUSD, "USD")})</span>` : ""), cls: "kpi-wide" },
+  ];
+  $("#cons-kpis").innerHTML = kpis.map(k => `
+    <div style="background:var(--bg-soft,#f8fafc);border:1px solid var(--line,#e5e7eb);border-radius:10px;padding:12px${k.cls === 'kpi-wide' ? ';grid-column:span 2' : ''}">
+      <div style="font-size:11px;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:.4px;font-weight:600">${k.label}</div>
+      <div style="font-size:18px;font-weight:700;margin-top:4px">${k.val}</div>
+    </div>
+  `).join("");
+
+  // por servicio
+  const cont = $("#cons-by-service");
+  if (!svcEntries.length) {
+    cont.innerHTML = '<div class="empty">No hay salidas con servicio asignado en el período seleccionado.</div>';
+  } else {
+    const maxUSD = Math.max(...svcEntries.map(([, v]) => v.usd), 1);
+    cont.innerHTML = svcEntries.map(([svc, v]) => {
+      const pct = Math.max(2, Math.round((v.usd / maxUSD) * 100));
+      const topItems = Object.values(v.byItem).sort((a, b) => b.usd - a.usd).slice(0, 5);
+      return `
+        <div style="margin-bottom:14px;border:1px solid var(--line,#e5e7eb);border-radius:10px;overflow:hidden">
+          <div style="background:linear-gradient(135deg,#0f766e,#0284c7);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <strong style="font-size:14px">🏥 ${escapeHtml(svc)}</strong>
+            <span style="font-size:13px;font-weight:600">${_fmtMoneyShort(v.usd, "USD")} · ${_fmtMoneyShort(v.ars, "ARS")}</span>
+          </div>
+          <div style="padding:10px 14px">
+            <div style="background:#f3f4f6;border-radius:8px;height:10px;overflow:hidden;margin-bottom:8px">
+              <div style="background:linear-gradient(90deg,#0f766e,#0284c7);height:100%;width:${pct}%"></div>
+            </div>
+            <div style="font-size:12px;color:var(--muted,#6b7280);margin-bottom:8px">
+              ${v.movs} salida${v.movs === 1 ? "" : "s"} · ${v.items.size} insumo${v.items.size === 1 ? "" : "s"} distinto${v.items.size === 1 ? "" : "s"}
+            </div>
+            ${topItems.length ? `
+              <div style="font-size:11px;font-weight:600;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Top insumos del servicio</div>
+              ${topItems.map(it => `
+                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-bottom:1px dashed #f3f4f6">
+                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${escapeHtml(it.nombre)}</span>
+                  <span style="color:#0f766e;font-weight:600">${it.qty}u · ${_fmtMoneyShort(it.usd, "USD")}</span>
+                </div>
+              `).join("")}
+            ` : ""}
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  // detalle insumo × servicio (matriz)
+  const det = $("#cons-detail");
+  if (!svcEntries.length) {
+    det.innerHTML = '<div class="empty">Sin datos.</div>';
+  } else {
+    // recolectar todos los insumos y armar matriz
+    const itemNames = {};
+    svcEntries.forEach(([svc, v]) => {
+      Object.values(v.byItem).forEach(it => {
+        if (!itemNames[it.nombre]) itemNames[it.nombre] = { totalUSD: 0, perSvc: {} };
+        itemNames[it.nombre].totalUSD += it.usd;
+        itemNames[it.nombre].perSvc[svc] = it;
+      });
+    });
+    const itemRows = Object.entries(itemNames).sort((a, b) => b[1].totalUSD - a[1].totalUSD);
+    const svcs = svcEntries.map(([s]) => s);
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:600px">';
+    html += '<thead><tr><th style="text-align:left;padding:8px;border-bottom:2px solid var(--line,#e5e7eb);background:var(--bg-soft,#f8fafc)">Insumo</th>';
+    svcs.forEach(s => { html += `<th style="text-align:right;padding:8px;border-bottom:2px solid var(--line,#e5e7eb);background:var(--bg-soft,#f8fafc);white-space:nowrap">${escapeHtml(s)}</th>`; });
+    html += '<th style="text-align:right;padding:8px;border-bottom:2px solid var(--line,#e5e7eb);background:var(--bg-soft,#f8fafc)">Total USD</th></tr></thead><tbody>';
+    itemRows.forEach(([name, info]) => {
+      html += `<tr><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">${escapeHtml(name)}</td>`;
+      svcs.forEach(s => {
+        const c = info.perSvc[s];
+        html += `<td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6;color:${c ? "#0f766e" : "#d1d5db"}">${c ? c.qty + "u · " + Math.round(c.usd).toLocaleString("es-AR") : "—"}</td>`;
+      });
+      html += `<td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6;font-weight:700;color:#0f766e">${_fmtMoneyShort(info.totalUSD, "USD")}</td></tr>`;
+    });
+    // fila de totales
+    html += '<tr style="background:var(--bg-soft,#f8fafc);font-weight:700"><td style="padding:8px">TOTAL</td>';
+    svcs.forEach(s => {
+      const v = byService[s];
+      html += `<td style="padding:8px;text-align:right;color:#0f766e">${_fmtMoneyShort(v.usd, "USD")}</td>`;
+    });
+    html += `<td style="padding:8px;text-align:right;color:#0f766e">${_fmtMoneyShort(totUSD, "USD")}</td></tr>`;
+    html += '</tbody></table>';
+    det.innerHTML = html;
+  }
+
+  // Si está activa la vista gráfica, redibujar charts también
+  if (_consTab === "grafico") renderConsumosCharts(movs, byService, totUSD);
+}
+
+// ---------- CONSUMOS · VISTA GRÁFICA ----------
+let _consTab = "lista";        // "lista" | "grafico"
+let _consGran = "month";       // "month" | "year"
+const CONS_COLORS = [
+  "#0f766e","#0284c7","#dc2626","#f59e0b","#16a34a","#7c3aed",
+  "#db2777","#0891b2","#ea580c","#65a30d","#9333ea","#475569",
+];
+function _colorFor(idx) { return CONS_COLORS[idx % CONS_COLORS.length]; }
+
+function _periodKey(dateStr, gran) {
+  const d = new Date(_fixTZ(dateStr));
+  if (gran === "year") return String(d.getFullYear());
+  // month: YYYY-MM
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+function _periodLabel(key, gran) {
+  if (gran === "year") return key;
+  const [y, m] = key.split("-");
+  const meses = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  return meses[parseInt(m, 10) - 1] + " " + y.slice(2);
+}
+
+function renderConsumosCharts(movs, byService, totUSD) {
+  // ---- 1. Stacked bar chart de evolución por período × servicio ----
+  // Estructura: periods = ordered list of period keys; series = {svc: {periodKey: usd}}
+  const periodsSet = new Set();
+  const series = {};
+  movs.forEach(m => {
+    const pk = _periodKey(m.fecha, _consGran);
+    periodsSet.add(pk);
+    const c = _consMovCost(m);
+    if (!series[m.servicio]) series[m.servicio] = {};
+    series[m.servicio][pk] = (series[m.servicio][pk] || 0) + c.usd;
+  });
+  const periods = Array.from(periodsSet).sort();
+  const services = Object.keys(series).sort((a, b) => {
+    const ta = Object.values(series[a]).reduce((x, y) => x + y, 0);
+    const tb = Object.values(series[b]).reduce((x, y) => x + y, 0);
+    return tb - ta;
+  });
+
+  // Calcular máximo apilado
+  const stackTotals = periods.map(pk => services.reduce((s, svc) => s + (series[svc][pk] || 0), 0));
+  const maxY = Math.max(...stackTotals, 1);
+
+  // SVG dimensiones
+  const W = Math.max(560, periods.length * 70 + 80);
+  const H = 320;
+  const ML = 60, MR = 20, MT = 20, MB = 50;
+  const plotW = W - ML - MR;
+  const plotH = H - MT - MB;
+  const barW = Math.min(50, plotW / Math.max(periods.length, 1) * 0.7);
+
+  // Ticks Y (5 niveles)
+  const ticks = 5;
+  const tickVals = [];
+  for (let i = 0; i <= ticks; i++) tickVals.push((maxY * i) / ticks);
+  const fmtTick = v => v >= 1000 ? Math.round(v / 1000) + "k" : Math.round(v);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;font-family:inherit">`;
+  // Grilla horizontal
+  tickVals.forEach((tv, i) => {
+    const y = MT + plotH - (tv / maxY) * plotH;
+    svg += `<line x1="${ML}" y1="${y}" x2="${ML + plotW}" y2="${y}" stroke="#e5e7eb" stroke-width="1"/>`;
+    svg += `<text x="${ML - 6}" y="${y + 4}" font-size="10" text-anchor="end" fill="#6b7280">${fmtTick(tv)}</text>`;
+  });
+  // Barras apiladas
+  periods.forEach((pk, pi) => {
+    const cx = ML + (pi + 0.5) * (plotW / periods.length);
+    const x = cx - barW / 2;
+    let yAcc = MT + plotH;
+    services.forEach((svc, si) => {
+      const v = series[svc][pk] || 0;
+      if (v <= 0) return;
+      const h = (v / maxY) * plotH;
+      const y = yAcc - h;
+      svg += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${_colorFor(si)}" rx="2" ry="2">`;
+      svg += `<title>${escapeHtml(svc)} · ${_periodLabel(pk, _consGran)}: USD ${Math.round(v).toLocaleString("es-AR")}</title>`;
+      svg += `</rect>`;
+      yAcc = y;
+    });
+    // Total encima de la barra
+    const tot = stackTotals[pi];
+    if (tot > 0) {
+      svg += `<text x="${cx}" y="${MT + plotH - (tot / maxY) * plotH - 4}" font-size="10" font-weight="600" text-anchor="middle" fill="#111827">${fmtTick(tot)}</text>`;
+    }
+    // Etiqueta X
+    svg += `<text x="${cx}" y="${H - 22}" font-size="11" text-anchor="middle" fill="#374151" font-weight="500">${_periodLabel(pk, _consGran)}</text>`;
+  });
+  // Eje X
+  svg += `<line x1="${ML}" y1="${MT + plotH}" x2="${ML + plotW}" y2="${MT + plotH}" stroke="#9ca3af" stroke-width="1"/>`;
+  svg += `<text x="${ML + plotW / 2}" y="${H - 5}" font-size="10" text-anchor="middle" fill="#6b7280">${_consGran === "year" ? "Año" : "Mes"}</text>`;
+  svg += `</svg>`;
+
+  const evol = document.getElementById("chart-evolution");
+  if (!periods.length || maxY <= 1) {
+    evol.innerHTML = '<div class="empty">Sin datos para graficar en el período seleccionado.</div>';
+    document.getElementById("chart-legend").innerHTML = "";
+  } else {
+    evol.innerHTML = svg;
+    // Legend
+    document.getElementById("chart-legend").innerHTML = services.map((svc, si) => `
+      <span style="display:inline-flex;align-items:center;gap:5px">
+        <span style="width:12px;height:12px;background:${_colorFor(si)};border-radius:3px;display:inline-block"></span>
+        ${escapeHtml(svc)}
+      </span>
+    `).join("");
+  }
+
+  // ---- 2. Pie chart de distribución por servicio ----
+  const svcTotals = services.map(svc => ({
+    svc,
+    usd: Object.values(series[svc]).reduce((a, b) => a + b, 0),
+  })).filter(x => x.usd > 0).sort((a, b) => b.usd - a.usd);
+  const pieSum = svcTotals.reduce((a, b) => a + b.usd, 0);
+
+  const pieEl = document.getElementById("chart-pie");
+  const pieLegEl = document.getElementById("chart-pie-legend");
+  if (!pieSum) {
+    pieEl.innerHTML = '<div class="empty">Sin datos</div>';
+    pieLegEl.innerHTML = "";
+  } else {
+    const R = 90, CX = 100, CY = 100;
+    let startAngle = -Math.PI / 2;
+    let pieSvg = `<svg viewBox="0 0 200 200" width="200" height="200">`;
+    svcTotals.forEach((s, i) => {
+      const angle = (s.usd / pieSum) * 2 * Math.PI;
+      const endAngle = startAngle + angle;
+      const x1 = CX + R * Math.cos(startAngle);
+      const y1 = CY + R * Math.sin(startAngle);
+      const x2 = CX + R * Math.cos(endAngle);
+      const y2 = CY + R * Math.sin(endAngle);
+      const largeArc = angle > Math.PI ? 1 : 0;
+      // si solo hay 1 servicio, dibujar círculo completo
+      if (svcTotals.length === 1) {
+        pieSvg += `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${_colorFor(i)}" stroke="#fff" stroke-width="2"/>`;
+      } else {
+        const path = `M ${CX} ${CY} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+        pieSvg += `<path d="${path}" fill="${_colorFor(i)}" stroke="#fff" stroke-width="2"><title>${escapeHtml(s.svc)}: USD ${Math.round(s.usd).toLocaleString("es-AR")} (${((s.usd / pieSum) * 100).toFixed(1)}%)</title></path>`;
+      }
+      startAngle = endAngle;
+    });
+    pieSvg += `<circle cx="${CX}" cy="${CY}" r="40" fill="#fff"/>`;
+    pieSvg += `<text x="${CX}" y="${CY - 4}" font-size="11" text-anchor="middle" fill="#6b7280">Total</text>`;
+    pieSvg += `<text x="${CX}" y="${CY + 12}" font-size="13" text-anchor="middle" font-weight="700" fill="#111827">${fmtTick(pieSum)}</text>`;
+    pieSvg += `</svg>`;
+    pieEl.innerHTML = pieSvg;
+    // Legend con %
+    pieLegEl.innerHTML = svcTotals.map((s, i) => {
+      const pct = ((s.usd / pieSum) * 100).toFixed(1);
+      return `
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f3f4f6">
+          <span style="width:14px;height:14px;background:${_colorFor(services.indexOf(s.svc))};border-radius:3px;flex-shrink:0"></span>
+          <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(s.svc)}</span>
+          <span style="font-size:13px;font-weight:600;color:#0f766e">${pct}%</span>
+          <span style="font-size:11px;color:#6b7280;min-width:80px;text-align:right">${_fmtMoneyShort(s.usd, "USD")}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  // ---- 3. Ranking horizontal de servicios ----
+  const rankEl = document.getElementById("chart-ranking");
+  if (!svcTotals.length) {
+    rankEl.innerHTML = '<div class="empty">Sin datos</div>';
+  } else {
+    const maxRank = svcTotals[0].usd || 1;
+    rankEl.innerHTML = svcTotals.map((s, i) => {
+      const pct = Math.max(2, Math.round((s.usd / maxRank) * 100));
+      return `
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+            <strong>${i + 1}. ${escapeHtml(s.svc)}</strong>
+            <span style="color:#0f766e;font-weight:600">${_fmtMoneyShort(s.usd, "USD")}</span>
+          </div>
+          <div style="background:#f3f4f6;height:14px;border-radius:7px;overflow:hidden">
+            <div style="background:${_colorFor(services.indexOf(s.svc))};height:100%;width:${pct}%;transition:width .4s"></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  // ---- 4. Top 10 insumos consumidos en USD ----
+  const itemTotals = {};
+  movs.forEach(m => {
+    const c = _consMovCost(m);
+    const key = m.insumo_nombre || ("#" + m.insumo_id);
+    if (!itemTotals[key]) itemTotals[key] = { usd: 0, qty: 0 };
+    itemTotals[key].usd += c.usd;
+    itemTotals[key].qty += Number(m.cantidad) || 0;
+  });
+  const topItems = Object.entries(itemTotals).sort((a, b) => b[1].usd - a[1].usd).slice(0, 10);
+  const topEl = document.getElementById("chart-top-items");
+  if (!topItems.length) {
+    topEl.innerHTML = '<div class="empty">Sin datos</div>';
+  } else {
+    const maxItem = topItems[0][1].usd || 1;
+    topEl.innerHTML = topItems.map(([name, v], i) => {
+      const pct = Math.max(2, Math.round((v.usd / maxItem) * 100));
+      return `
+        <div style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${i + 1}. ${escapeHtml(name)}</span>
+            <span style="color:#0f766e;font-weight:600">${v.qty}u · ${_fmtMoneyShort(v.usd, "USD")}</span>
+          </div>
+          <div style="background:#f3f4f6;height:10px;border-radius:5px;overflow:hidden">
+            <div style="background:linear-gradient(90deg,#0f766e,#0284c7);height:100%;width:${pct}%"></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+}
+
+function setConsTab(tab) {
+  _consTab = tab;
+  document.querySelectorAll(".cons-tab-btn").forEach(b => {
+    const isActive = b.dataset.tab === tab;
+    b.classList.toggle("btn-primary", isActive);
+    b.classList.toggle("btn-secondary", !isActive);
+  });
+  document.getElementById("cons-view-lista").classList.toggle("hidden", tab !== "lista");
+  document.getElementById("cons-view-grafico").classList.toggle("hidden", tab !== "grafico");
+  renderConsumos();
+}
+
+function setConsGran(g) {
+  _consGran = g;
+  document.querySelectorAll(".cons-gran-btn").forEach(b => {
+    const isActive = b.dataset.gran === g;
+    b.classList.toggle("btn-primary", isActive);
+    b.classList.toggle("btn-secondary", !isActive);
+  });
+  renderConsumos();
+}
+
+// ---------- FORM INSUMO (crear/editar) ----------
+function openCreate() {
+  state.current = null;
+  $("#form-title").textContent = "Nuevo insumo";
+  $("#form-delete").style.display = "none";
+  ["nombre", "stock", "stock-min", "marca", "equipo", "ref", "ubic", "prom", "sol", "moneda", "precio"].forEach(k => {
+    const el = document.getElementById("f-" + k);
+    if (!el) return;
+    if (k === "stock") el.value = 0;
+    else if (k === "stock-min") el.value = 1;
+    else el.value = "";
+  });
+  openModal("modal-form");
+}
+function openEdit() {
+  const it = state.current;
+  if (!it) return;
+  $("#form-title").textContent = "Editar insumo";
+  $("#form-delete").style.display = (state.user && state.user.rol === "admin") ? "inline-flex" : "none";
+  $("#f-nombre").value = it.nombre || "";
+  $("#f-stock").value = it.stock ?? 0;
+  $("#f-stock-min").value = it.stock_minimo ?? 1;
+  $("#f-marca").value = it.marca || "";
+  $("#f-equipo").value = it.equipo_medico || "";
+  $("#f-ref").value = it.referencia || "";
+  $("#f-ubic").value = it.ubicacion || "";
+  $("#f-prom").value = it.prom_anual ?? "";
+  $("#f-sol").value = it.solicitud_compra ?? "";
+  $("#f-moneda").value = it.moneda || "";
+  $("#f-precio").value = it.precio_unit_valor ?? "";
+  openModal("modal-form");
+}
+async function saveInsumo(ev) {
+  ev && ev.preventDefault();
+  const data = {
+    nombre: $("#f-nombre").value.trim().toUpperCase(),
+    stock: Number($("#f-stock").value || 0),
+    stock_minimo: Number($("#f-stock-min").value || 0),
+    marca: $("#f-marca").value.trim() || null,
+    equipo_medico: $("#f-equipo").value.trim() || null,
+    referencia: $("#f-ref").value.trim() || null,
+    ubicacion: $("#f-ubic").value.trim() || null,
+    prom_anual: $("#f-prom").value === "" ? null : Number($("#f-prom").value),
+    solicitud_compra: $("#f-sol").value === "" ? null : Number($("#f-sol").value),
+    moneda: $("#f-moneda").value || null,
+    precio_unit_valor: $("#f-precio").value === "" ? null : Number($("#f-precio").value),
+  };
+  if (!data.nombre) { toast("Nombre requerido", "err"); return; }
+  const btn = $("#form-save");
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Guardando…';
+  try {
+    let saved;
+    if (state.current && state.current.id) {
+      saved = await api("/insumos/" + state.current.id, { method: "PATCH", body: JSON.stringify(data) });
+    } else {
+      saved = await api("/insumos", { method: "POST", body: JSON.stringify(data) });
+    }
+    closeModal("modal-form");
+    toast("Insumo guardado", "ok");
+    state.current = saved;
+    await loadInsumos();
+    state.current = state.insumos.find(x => x.id === saved.id) || saved;
+    if (state.view === "detail") {
+      // recargar movs
+      try { state.current._movs = await api(`/insumos/${state.current.id}/movimientos`); } catch {}
+      renderDetail();
+    }
+    refreshAlertBadge();
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+async function deleteCurrent() {
+  if (!state.current) return;
+  if (!confirm(`¿Borrar "${state.current.nombre}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    await api("/insumos/" + state.current.id, { method: "DELETE" });
+    closeModal("modal-form");
+    toast("Insumo borrado", "ok");
+    state.current = null;
+    showSubview("list");
+    await loadInsumos();
+    refreshAlertBadge();
+  } catch (e) {
+    toast(e.message, "err");
+  }
+}
+
+// ---------- MOVIMIENTOS (modal) ----------
+function openMov(tipo) {
+  if (!state.current) return;
+  state.editingMovId = null;
+  $("#mov-title").textContent = ({ IN: "Registrar entrada", OUT: "Registrar salida", AJUSTE: "Ajuste de stock" })[tipo];
+  $("#mov-tipo").value = tipo;
+  $("#mov-tipo").disabled = false;
+  $("#mov-tipo").querySelector('option[value="AJUSTE"]').disabled = !isAdmin();
+  $("#mov-qty").disabled = false;
+  $("#mov-ajuste-lock-note").style.display = "none";
+  $("#mov-delete-btn").style.display = "none";
+  $("#mov-save").textContent = "Guardar";
+  $("#mov-insumo").value = state.current.nombre;
+  $("#mov-qty").value = tipo === "AJUSTE" ? (state.current.stock || 0) : 1;
+  $("#mov-qty-label").textContent = tipo === "AJUSTE" ? "Stock final" : "Cantidad";
+  $("#mov-svc").value = "";
+  $("#mov-resp").value = "";
+  // Si el insumo ya tiene ubicación cargada (ej: "2K"), la precargamos acá
+  // para no tener que volver a escribirla en cada movimiento.
+  $("#mov-pac").value = state.current.ubicacion || "";
+  $("#mov-motivo-salida").value = "";
+  $("#mov-motivo-otro").value = "";
+  $("#mov-motivo-otro").style.display = "none";
+  $("#mov-pac-wrap").style.display = tipo === "OUT" ? "none" : "";
+  $("#mov-motivo-wrap").style.display = tipo === "OUT" ? "" : "none";
+  $("#mov-notas").value = "";
+  $("#mov-comp-tipo").value = "";
+  $("#mov-comp-letra").value = "";
+  $("#mov-comp-num").value = "";
+  $("#mov-comp-prov").value = "";
+  $("#mov-comp-fecha").value = "";
+  $("#mov-comp-wrap").style.display = tipo === "IN" ? "" : "none";
+  $("#mov-nota-btn").style.display = tipo === "OUT" ? "" : "none";
+  // Servicios (agrupados por padre con sub-áreas) -> desplegable acordeón
+  _svcOpenParents = new Set();
+  closeSvcDropdown();
+  _movPreviewInsumo = { id: state.current.id, stock: state.current.stock || 0 };
+  updateMovStockPreview();
+  openModal("modal-mov");
+}
+
+// Abre el generador de "Nota de Entrega" en una pestaña nueva, precargado
+// con los datos ya cargados en el modal de Registrar salida.
+function generarNotaEntrega() {
+  const cantidad = $("#mov-qty").value || "1";
+  const equipo = (state.current && state.current.nombre) || $("#mov-insumo").value || "";
+  const servicio = $("#mov-svc").value || "";
+  const destinatario = $("#mov-resp").value || "";
+  const firmante = (state.user && state.user.nombre) || "";
+  const sel = $("#mov-motivo-salida").value;
+  const motivo = sel === "Otro" ? $("#mov-motivo-otro").value.trim() : sel;
+  const notasBase = $("#mov-notas").value || "";
+  const notas = motivo ? [`Motivo: ${motivo}.`, notasBase].filter(Boolean).join(" ") : notasBase;
+  const params = new URLSearchParams({
+    cantidad,
+    equipo,
+    destino: servicio,
+    sector: servicio,
+    nombreDestinatario: destinatario,
+    firmaNombre: firmante,
+    notas,
+  });
+  window.open(`/static/nota.html?${params.toString()}`, "_blank");
+}
+
+// Parsea un comprobante tipo "R-A 0001-00012345" / "OC 0001-00012345" de vuelta a sus partes.
+function _parseComprobante(s) {
+  if (!s) return { tipo: "", letra: "", num: "" };
+  const m = String(s).trim().match(/^(R|F|OC)(?:-(A|B|C|X))?\s+(.+)$/);
+  if (!m) return { tipo: "", letra: "", num: s };
+  return { tipo: m[1], letra: m[2] || "", num: m[3] };
+}
+
+function openEditMov(movId) {
+  const m = state.movLookup[movId];
+  if (!m) { toast("No se encontró ese movimiento", "err"); return; }
+  state.editingMovId = movId;
+  const esAjuste = m.tipo === "AJUSTE";
+  $("#mov-title").textContent = "Editar movimiento";
+  $("#mov-tipo").value = m.tipo;
+  $("#mov-tipo").disabled = esAjuste;
+  // No se puede convertir un Ajuste en Entrada/Salida ni viceversa desde acá.
+  $("#mov-tipo").querySelector('option[value="AJUSTE"]').disabled = !esAjuste;
+  $("#mov-qty").disabled = false;
+  $("#mov-ajuste-lock-note").style.display = esAjuste ? "" : "none";
+  $("#mov-delete-btn").style.display = "";
+  $("#mov-save").textContent = "Guardar cambios";
+  $("#mov-insumo").value = m.insumo_nombre || "";
+  // Para Ajuste, el valor cargado en la BD es el delta absoluto (no el stock
+  // final); precargamos con eso por ahora y lo corregimos al stock real
+  // apenas llega el fetch de abajo.
+  $("#mov-qty").value = m.cantidad ?? 0;
+  $("#mov-qty-label").textContent = esAjuste ? "Stock final" : "Cantidad";
+  $("#mov-svc").value = m.servicio || "";
+  $("#mov-resp").value = m.responsable || "";
+  $("#mov-pac-wrap").style.display = m.tipo === "OUT" ? "none" : "";
+  $("#mov-motivo-wrap").style.display = m.tipo === "OUT" ? "" : "none";
+  if (m.tipo === "OUT") {
+    const opciones = ["Cambio por uno nuevo", "Entrega / Pedido por mail"];
+    if (m.paciente && opciones.includes(m.paciente)) {
+      $("#mov-motivo-salida").value = m.paciente;
+      $("#mov-motivo-otro").value = "";
+      $("#mov-motivo-otro").style.display = "none";
+    } else if (m.paciente) {
+      $("#mov-motivo-salida").value = "Otro";
+      $("#mov-motivo-otro").value = m.paciente;
+      $("#mov-motivo-otro").style.display = "";
+    } else {
+      $("#mov-motivo-salida").value = "";
+      $("#mov-motivo-otro").value = "";
+      $("#mov-motivo-otro").style.display = "none";
+    }
+    $("#mov-pac").value = "";
+  } else {
+    $("#mov-pac").value = m.paciente || "";
+  }
+  $("#mov-notas").value = m.notas || "";
+  const comp = _parseComprobante(m.comprobante);
+  $("#mov-comp-tipo").value = comp.tipo;
+  $("#mov-comp-letra").value = comp.letra;
+  $("#mov-comp-num").value = comp.num;
+  $("#mov-comp-prov").value = m.proveedor || "";
+  $("#mov-comp-fecha").value = m.comprobante_fecha ? String(m.comprobante_fecha).slice(0, 10) : "";
+  $("#mov-comp-wrap").style.display = m.tipo === "IN" ? "" : "none";
+  $("#mov-nota-btn").style.display = m.tipo === "OUT" ? "" : "none";
+  _svcOpenParents = new Set();
+  closeSvcDropdown();
+  _movPreviewInsumo = null;
+  $("#mov-stock-preview").textContent = "Cargando stock actual…";
+  openModal("modal-mov");
+  // Traemos el stock REAL y actual del insumo (no el cacheado) para que la
+  // vista previa detecte si ya no coincide con el historial de movimientos.
+  api(`/insumos/${m.insumo_id}`).then(fresh => {
+    _movPreviewInsumo = { id: m.insumo_id, stock: fresh.stock || 0 };
+    if (state.editingMovId === movId) {
+      // El campo "Stock final" de un Ajuste arranca en el stock actual real
+      // (no en el delta guardado), así el admin ve el valor correcto y solo
+      // tiene que corregirlo.
+      if (esAjuste) $("#mov-qty").value = fresh.stock || 0;
+      updateMovStockPreview();
+    }
+  }).catch(() => { $("#mov-stock-preview").textContent = ""; });
+}
+
+async function deleteMovFromModal() {
+  const movId = state.editingMovId;
+  if (!movId) return;
+  const m = state.movLookup[movId];
+  if (!confirm(`¿Eliminar este movimiento de "${m ? m.insumo_nombre : ""}"?\n\nSe revierte su efecto sobre el stock (si corresponde) y no se puede deshacer.`)) return;
+  try {
+    await api(`/movimientos/${movId}`, { method: "DELETE" });
+    closeModal("modal-mov");
+    toast("Movimiento eliminado", "ok");
+    await _refreshAfterMovEdit();
+  } catch (e) {
+    toast(e.message, "err");
+  }
+}
+
+async function _refreshAfterMovEdit() {
+  await loadInsumos();
+  if (state.current) {
+    state.current = state.insumos.find(x => x.id === state.current.id) || state.current;
+    if (state.current) {
+      state.current._movs = await api(`/insumos/${state.current.id}/movimientos`);
+      if (state.view === "detail") renderDetail();
+    }
+  }
+  if (typeof _allMovs !== "undefined" && $("#history-list")) {
+    try { await loadHistory(); } catch (e) { /* noop */ }
+  }
+  refreshAlertBadge();
+}
+
+// Devuelve <options> y <optgroup> agrupando por servicio padre
+function _serviciosOptionsHtml(list) {
+  const { order, groups } = _groupServicios(list);
+  return order.map(parent => {
+    const subs = groups[parent] || [];
+    if (!subs.length) {
+      return `<option value="${escapeHtml(parent)}">${escapeHtml(parent)}</option>`;
+    }
+    // optgroup con la opción del propio servicio + cada sub-área
+    return `<optgroup label="${escapeHtml(parent)}">
+      <option value="${escapeHtml(parent)}">${escapeHtml(parent)} (general)</option>
+      ${subs.map(sub => `<option value="${escapeHtml(parent + SUB_SEP + sub)}">${escapeHtml(parent)} · ${escapeHtml(sub)}</option>`).join("")}
+    </optgroup>`;
+  }).join("");
+}
+// ---- Servicio: desplegable tipo acordeón (padre expandible + sub-áreas) ----
+let _svcOpenParents = new Set();
+function renderSvcDropdown(filter) {
+  const dd = $("#mov-svc-dropdown");
+  if (!dd) return;
+  const list = state.config.servicios || [];
+  const { order, groups } = _groupServicios(list);
+  const f = (filter || "").trim().toLowerCase();
+
+  let rows = order.map(parent => {
+    const subs = groups[parent] || [];
+    const parentMatch = !f || parent.toLowerCase().includes(f);
+    const matchingSubs = f ? subs.filter(s => s.toLowerCase().includes(f)) : subs;
+    if (f && !parentMatch && !matchingSubs.length) return "";
+    const isOpen = _svcOpenParents.has(parent) || (f && matchingSubs.length > 0);
+    const subsHtml = (f ? matchingSubs : subs).map(sub => `
+      <div class="svc-sub-row" onclick="event.stopPropagation();pickServicio('${escapeHtml(parent).replace(/'/g, "&#39;")}${SUB_SEP}${escapeHtml(sub).replace(/'/g, "&#39;")}')">
+        <span class="svc-arrow">↳</span>${escapeHtml(sub)}
+      </div>`).join("");
+    return `
+      <div class="svc-group">
+        <div class="svc-parent-row" onclick="pickServicio('${escapeHtml(parent).replace(/'/g, "&#39;")}')">
+          <span class="svc-name">🏥 ${escapeHtml(parent)}</span>
+          ${subs.length ? `<span class="svc-caret" onclick="event.stopPropagation();toggleSvcParent('${escapeHtml(parent).replace(/'/g, "&#39;")}')">${isOpen ? "▲" : "▼"}</span>` : ""}
+        </div>
+        ${subs.length ? `<div class="svc-subs ${isOpen ? "open" : ""}">${subsHtml}</div>` : ""}
+      </div>`;
+  }).join("");
+
+  if (!rows.trim()) rows = '<div class="svc-empty">Sin servicios que coincidan. Escribí para crear uno nuevo.</div>';
+  dd.innerHTML = rows;
+  dd.style.display = "block";
+}
+function toggleSvcParent(parent) {
+  if (_svcOpenParents.has(parent)) _svcOpenParents.delete(parent);
+  else _svcOpenParents.add(parent);
+  renderSvcDropdown($("#mov-svc").value);
+}
+function pickServicio(value) {
+  $("#mov-svc").value = value;
+  closeSvcDropdown();
+}
+function closeSvcDropdown() {
+  const dd = $("#mov-svc-dropdown");
+  if (dd) dd.style.display = "none";
+}
+document.addEventListener("click", (e) => {
+  const wrap = $("#mov-svc-dropdown");
+  const input = $("#mov-svc");
+  if (!wrap || wrap.style.display === "none") return;
+  if (e.target === input || wrap.contains(e.target)) return;
+  closeSvcDropdown();
+});
+$("#mov-tipo").addEventListener("change", () => {
+  const t = $("#mov-tipo").value;
+  $("#mov-qty-label").textContent = t === "AJUSTE" ? "Stock final" : "Cantidad";
+  if (t === "AJUSTE" && !state.editingMovId && state.current) $("#mov-qty").value = state.current.stock || 0;
+  // El remito/factura solo aplica a entradas de mercadería.
+  $("#mov-comp-wrap").style.display = t === "IN" ? "" : "none";
+  $("#mov-nota-btn").style.display = t === "OUT" ? "" : "none";
+  $("#mov-pac-wrap").style.display = t === "OUT" ? "none" : "";
+  $("#mov-motivo-wrap").style.display = t === "OUT" ? "" : "none";
+  updateMovStockPreview();
+});
+
+// Vista previa del stock resultante, calculada SIEMPRE contra el stock real y
+// actual del insumo (recién consultado a la API), para detectar a tiempo si el
+// stock ya no coincide con la suma de movimientos (p.ej. por un "Reiniciar
+// contador" que se hizo después de este movimiento).
+let _movPreviewInsumo = null; // {id, stock} del insumo, cargado fresco al abrir el modal
+async function updateMovStockPreview() {
+  const el = $("#mov-stock-preview");
+  if (!el) return;
+  if (!_movPreviewInsumo) { el.textContent = ""; return; }
+  const baseline = _movPreviewInsumo.stock || 0;
+  const newTipo = $("#mov-tipo").value;
+  const newCant = Math.max(0, Number($("#mov-qty").value || 0));
+
+  if (state.editingMovId) {
+    const orig = state.movLookup[state.editingMovId];
+    if (!orig) { el.textContent = ""; return; }
+    if (orig.tipo === "AJUSTE") {
+      // Editar un Ajuste: el valor cargado es directamente el nuevo stock final.
+      const result = Math.max(0, newCant);
+      el.innerHTML = `📊 Stock actual: <strong>${fmtNum(baseline)}</strong> → resultante tras guardar: <strong>${fmtNum(result)}</strong>`;
+      return;
+    }
+    const oldEffect = orig.tipo === "IN" ? orig.cantidad : -orig.cantidad;
+    const newEffect = newTipo === "IN" ? newCant : (newTipo === "OUT" ? -newCant : null);
+    if (newEffect === null) { el.textContent = ""; return; }
+    const result = Math.max(0, baseline - oldEffect + newEffect);
+    el.innerHTML = `📊 Stock actual: <strong>${fmtNum(baseline)}</strong> → resultante tras guardar: <strong>${fmtNum(result)}</strong>`;
+  } else {
+    let result;
+    if (newTipo === "AJUSTE") result = newCant;
+    else result = Math.max(0, baseline + (newTipo === "IN" ? newCant : -newCant));
+    el.innerHTML = `📊 Stock actual: <strong>${fmtNum(baseline)}</strong> → resultante tras guardar: <strong>${fmtNum(result)}</strong>`;
+  }
+}
+
+function buildComprobante() {
+  const t = $("#mov-comp-tipo").value;
+  const l = $("#mov-comp-letra").value;
+  const n = $("#mov-comp-num").value.trim();
+  if (!t && !n) return null;          // no cargaron nada
+  const pref = t ? (l ? `${t}-${l}` : t) : "";
+  return [pref, n].filter(Boolean).join(" ") || null;   // ej: "R-A 0001-00012345"
+}
+
+async function saveMov(ev) {
+  ev && ev.preventDefault();
+  const editing = state.editingMovId;
+  if (!editing && !state.current) return;
+  const tipoActual = $("#mov-tipo").value;
+  let ubicacionOMotivo;
+  if (tipoActual === "OUT") {
+    const sel = $("#mov-motivo-salida").value;
+    ubicacionOMotivo = sel === "Otro" ? $("#mov-motivo-otro").value.trim() : sel;
+  } else {
+    ubicacionOMotivo = $("#mov-pac").value.trim();
+  }
+  const payload = {
+    tipo: $("#mov-tipo").value,
+    cantidad: Math.max(0, Number($("#mov-qty").value || 0)),
+    servicio: $("#mov-svc").value || null,
+    responsable: $("#mov-resp").value.trim() || null,
+    paciente: ubicacionOMotivo || null,
+    notas: $("#mov-notas").value.trim() || null,
+    comprobante: $("#mov-tipo").value === "IN" ? buildComprobante() : null,
+    comprobante_fecha: ($("#mov-tipo").value === "IN" && $("#mov-comp-fecha").value) ? $("#mov-comp-fecha").value : null,
+    proveedor: $("#mov-tipo").value === "IN" ? ($("#mov-comp-prov").value.trim() || null) : null,
+  };
+  if (payload.cantidad <= 0 && payload.tipo !== "AJUSTE") { toast("Cantidad inválida", "err"); return; }
+  if (payload.tipo === "AJUSTE" && payload.cantidad < 0) { toast("Stock final inválido", "err"); return; }
+  const btn = $("#mov-save");
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Guardando…';
+  try {
+    if (editing) {
+      await api(`/movimientos/${editing}`, { method: "PATCH", body: JSON.stringify(payload) });
+      closeModal("modal-mov");
+      toast("Movimiento actualizado", "ok");
+      await _refreshAfterMovEdit();
+    } else {
+      await api(`/insumos/${state.current.id}/movimientos`, { method: "POST", body: JSON.stringify(payload) });
+      closeModal("modal-mov");
+      toast("Movimiento registrado", "ok");
+      await loadInsumos();
+      state.current = state.insumos.find(x => x.id === state.current.id) || state.current;
+      state.current._movs = await api(`/insumos/${state.current.id}/movimientos`);
+      renderDetail();
+      refreshAlertBadge();
+    }
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    btn.disabled = false; btn.textContent = editing ? "Guardar cambios" : "Guardar";
+  }
+}
+
+async function resetContador() {
+  if (!state.current) return;
+  const msg = `¿Poner el stock de "${state.current.nombre}" en 0?\n\n` +
+              `Stock actual: ${state.current.stock || 0}\n\n` +
+              `NO se registra ningún movimiento ni ajuste en el historial.\n` +
+              `Usalo solo para corregir errores de carga.`;
+  if (!confirm(msg)) return;
+  try {
+    const updated = await api(`/insumos/${state.current.id}/reset-stock`, { method: "POST" });
+    toast("Contador reiniciado a 0", "ok");
+    state.current = updated;
+    const idx = state.insumos.findIndex(x => x.id === updated.id);
+    if (idx >= 0) state.insumos[idx] = updated;
+    state.current._movs = await api(`/insumos/${state.current.id}/movimientos`);
+    renderDetail();
+    refreshAlertBadge();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// ---------- FOTO ----------
+function triggerPhotoUpload() { $("#photo-input").click(); }
+$("#photo-input").addEventListener("change", async (ev) => {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f || !state.current) return;
+  const fd = new FormData();
+  fd.append("file", f);
+  try {
+    const updated = await api(`/insumos/${state.current.id}/foto`, { method: "POST", body: fd });
+    toast("Foto actualizada", "ok");
+    state.current = updated;
+    const idx = state.insumos.findIndex(x => x.id === updated.id);
+    if (idx >= 0) state.insumos[idx] = updated;
+    renderDetail();
+    renderList();
+  } catch (e) { toast(e.message, "err"); }
+  ev.target.value = "";
+});
+
+function openPhotoViewer(src) {
+  $("#photo-viewer-img").src = src;
+  $("#photo-viewer").classList.add("active");
+}
+function closePhotoViewer() { $("#photo-viewer").classList.remove("active"); }
+
+// ---------- BUSCAR POR FOTO ----------
+let bfFile = null;
+function openBuscarFoto() {
+  bfFile = null;
+  $("#bf-preview").style.display = "none";
+  $("#bf-preview").src = "";
+  $("#bf-submit-btn").style.display = "none";
+  $("#bf-results").innerHTML = "";
+  openModal("modal-buscar-foto");
+}
+function triggerBuscarFoto() { $("#buscar-foto-input").click(); }
+$("#buscar-foto-input").addEventListener("change", (ev) => {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  bfFile = f;
+  const url = URL.createObjectURL(f);
+  const img = $("#bf-preview");
+  img.src = url;
+  img.style.display = "block";
+  $("#bf-submit-btn").style.display = "block";
+  $("#bf-results").innerHTML = "";
+});
+async function buscarPorFoto() {
+  if (!bfFile) return;
+  const btn = $("#bf-submit-btn");
+  const results = $("#bf-results");
+  btn.disabled = true;
+  btn.textContent = "Buscando…";
+  results.innerHTML = '<div class="center-loader"><span class="spin"></span></div>';
+  try {
+    const fd = new FormData();
+    fd.append("file", bfFile);
+    const resp = await api("/insumos/buscar-por-foto", { method: "POST", body: fd });
+    renderBuscarFotoResultados(resp.resultados || []);
+  } catch (e) {
+    results.innerHTML = `<div class="empty">Error: ${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🔎 Buscar coincidencias";
+  }
+}
+function renderBuscarFotoResultados(resultados) {
+  const results = $("#bf-results");
+  if (!resultados.length) {
+    results.innerHTML = '<div class="empty">No encontramos insumos parecidos. Probá con otra foto o más luz.</div>';
+    return;
+  }
+  results.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Resultados más parecidos:</div>' +
+    '<div class="gallery">' + resultados.map(r => {
+      const it = r.insumo;
+      const loc = _parseUbicacion(it.ubicacion);
+      const locTxt = loc ? `Armario ${loc.armario}, Estante ${loc.estante}` : (it.ubicacion || "Sin ubicación");
+      return `
+    <div class="card ${stockClass(it)}" style="cursor:pointer" onclick="closeModal('modal-buscar-foto');openDetail(${it.id})">
+      <div class="img-wrap">
+        ${it.foto_filename
+          ? `<img src="/insumos/${it.id}/foto" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'no-img',textContent:'📦'}))">`
+          : '<span class="no-img">📦</span>'}
+        <span class="badge" style="background:var(--teal)">${r.similaridad_pct}%</span>
+      </div>
+      <div class="body">
+        <div class="title">${escapeHtml(it.nombre)}</div>
+        <div class="meta">${escapeHtml(it.marca || "")}</div>
+        <div class="stock-row">
+          <span class="stock-val" style="font-size:12px">📍 ${escapeHtml(locTxt)}</span>
+        </div>
+      </div>
+    </div>`;
+    }).join("") + "</div>";
+}
+
+// ============================================================================
+// ---------- PEDIDOS ----------
+// ============================================================================
+async function loadPedidos() {
+  try {
+    state.pedidos = await api("/pedidos");
+  } catch (e) {
+    state.pedidos = [];
+  }
+  renderPedidos();
+  loadCompras();
+}
+
+// ---------- ARMARIOS (ubicación física: estante + armario, ej "2K") ----------
+// Solo reconoce el formato "número + letra(s)" (2K, 1J, 3M...). Cualquier otro
+// texto libre en Ubicación (ej "AREA 51") no se puede ubicar en un armario/estante
+// y por eso no aparece acá, tal cual pidió Roberto.
+function _parseUbicacion(s) {
+  const m = String(s || "").trim().match(/^(\d+)\s*([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)$/);
+  if (!m) return null;
+  return { estante: parseInt(m[1], 10), armario: m[2].toUpperCase() };
+}
+
+// Agrupa todos los insumos por armario -> estante, a partir del campo Ubicación.
+function _armarioGroups() {
+  const items = state.insumos || [];
+  const conUbic = [];
+  const sinUbic = [];
+  items.forEach(it => {
+    const loc = _parseUbicacion(it.ubicacion);
+    if (loc) conUbic.push({ ...loc, it });
+    else if (!it.ubicacion || !it.ubicacion.trim()) sinUbic.push(it);
+  });
+  const groups = {};
+  conUbic.forEach(({ estante, armario, it }) => {
+    (groups[armario] ??= {});
+    (groups[armario][estante] ??= []);
+    groups[armario][estante].push(it);
+  });
+  return { groups, sinUbic };
+}
+
+async function loadArmariosData() {
+  try {
+    state.armarios = await api("/armarios");
+  } catch (e) {
+    state.armarios = [];
+  }
+  // Auto-provisionar armarios que ya se usan en Ubicación pero todavía no
+  // están registrados como tarjeta (ej: datos viejos con letras I/J/K/L/M).
+  if (isAdmin()) {
+    const { groups } = _armarioGroups();
+    const existentes = new Set(state.armarios.map(a => a.letra));
+    const faltantes = Object.keys(groups).filter(l => !existentes.has(l));
+    for (const letra of faltantes) {
+      try {
+        const nuevo = await api("/armarios", { method: "POST", body: JSON.stringify({ letra }) });
+        state.armarios.push(nuevo);
+      } catch (e) { /* noop */ }
+    }
+    state.armarios.sort((a, b) => a.letra.localeCompare(b.letra));
+  }
+  renderArmariosGrid();
+}
+
+function renderArmariosGrid() {
+  $("#armario-detail-view").classList.add("hidden");
+  $("#armarios-grid-view").classList.remove("hidden");
+  state.armarioActual = null;
+
+  const { groups, sinUbic } = _armarioGroups();
+  const cont = $("#armarios-grid");
+  const armarios = (state.armarios || []).slice().sort((a, b) => a.letra.localeCompare(b.letra));
+
+  const cards = armarios.map(a => {
+    const g = groups[a.letra] || {};
+    const total = Object.values(g).reduce((s, list) => s + list.length, 0);
+    const foto = a.foto_filename
+      ? `<img src="/armarios/${a.id}/foto?v=${encodeURIComponent(a.foto_filename)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'no-img',textContent:'🗄️'}))">`
+      : '<span class="no-img">🗄️</span>';
+    return `
+      <div class="card" onclick="openArmarioDetail('${a.letra}')">
+        <div class="img-wrap">
+          ${foto}
+          <span class="arm-letter-badge">${escapeHtml(a.letra)}</span>
+        </div>
+        <div class="body">
+          <div class="title">${escapeHtml(a.nombre || ("Armario " + a.letra))}</div>
+          <div class="stock-row">
+            <span class="stock-val" style="font-size:14px">${total} insumo${total === 1 ? "" : "s"}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  const addCard = isAdmin() ? `
+      <div class="card arm-card-add" onclick="openNewArmario()">
+        <div class="img-wrap"><span class="plus">＋</span></div>
+        <div class="body" style="align-items:center;text-align:center">
+          <div class="title" style="color:var(--teal)">Agregar armario</div>
+        </div>
+      </div>` : "";
+
+  cont.innerHTML = cards + addCard;
+  if (!armarios.length && !isAdmin()) {
+    cont.innerHTML = '<div class="empty">Todavía no hay armarios cargados.</div>';
+  }
+
+  const banner = $("#arm-sin-ubicacion-banner");
+  banner.innerHTML = sinUbic.length
+    ? `<div class="alert alert-warn" style="margin-bottom:10px">⚠ Hay <strong>${sinUbic.length}</strong> insumo${sinUbic.length === 1 ? "" : "s"} sin ubicación cargada — no aparecen en ningún armario hasta que les completes el campo "Ubicación" (formato: número + letra, ej. 2K).</div>`
+    : "";
+}
+
+function openArmarioDetail(letra) {
+  state.armarioActual = letra;
+  $("#armarios-grid-view").classList.add("hidden");
+  $("#armario-detail-view").classList.remove("hidden");
+  const a = (state.armarios || []).find(x => x.letra === letra);
+  const foto = a && a.foto_filename
+    ? `<img src="/armarios/${a.id}/foto?v=${encodeURIComponent(a.foto_filename)}" alt="" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:12px" onerror="this.remove()">`
+    : "";
+  $("#armario-detail-header").innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin:10px 0">
+      <div style="width:44px;height:44px;border-radius:50%;background:var(--teal);color:#fff;font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${escapeHtml(letra)}</div>
+      <h2 style="margin:0;flex:1">${escapeHtml((a && a.nombre) || ("Armario " + letra))}</h2>
+      ${a && isAdmin() ? `<button class="btn btn-secondary btn-sm" onclick="triggerArmarioPhotoUpload(${a.id})">📷 ${a.foto_filename ? "Cambiar" : "Subir"} foto</button>` : ""}
+      ${a && isAdmin() ? `<button class="btn btn-secondary btn-sm" onclick="openEditArmario(${a.id})">✏️</button>` : ""}
+    </div>
+    ${foto}
+  `;
+  $("#arm-search").value = "";
+  renderArmarioDetailBody();
+}
+
+function closeArmarioDetail() {
+  renderArmariosGrid();
+}
+
+function renderArmarioDetailBody() {
+  const letra = state.armarioActual;
+  if (!letra) return;
+  const q = ($("#arm-search").value || "").trim().toLowerCase();
+  const { groups } = _armarioGroups();
+  const g = groups[letra] || {};
+  const estantes = Object.keys(g).map(Number).sort((a, b) => a - b);
+
+  const cont = $("#armario-detail-body");
+  if (!estantes.length) {
+    cont.innerHTML = '<div class="empty">Este armario todavía no tiene insumos con ubicación cargada. Cargalas desde "✏ Editar insumo" → Ubicación (ej: 1' + escapeHtml(letra) + ').</div>';
+    return;
+  }
+
+  let matchIds = null;
+  if (q) {
+    const all = estantes.flatMap(n => g[n]);
+    matchIds = new Set(all.filter(it => (it.nombre + " " + (it.marca || "")).toLowerCase().includes(q)).map(it => it.id));
+  }
+
+  cont.innerHTML = estantes.map(n => {
+    const list = g[n].slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
+    const cards = list.map(it => {
+      const isMatch = matchIds && matchIds.has(it.id);
+      return `
+        <div class="card ${stockClass(it)}" style="cursor:pointer${isMatch ? ";outline:2px solid #facc15" : ""}" onclick="openDetail(${it.id})">
+          <div class="img-wrap">
+            ${it.foto_filename
+              ? `<img src="/insumos/${it.id}/foto" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'no-img',textContent:'📦'}))">`
+              : '<span class="no-img">📦</span>'}
+            ${stockBadge(it)}
+          </div>
+          <div class="body">
+            <div class="title">${escapeHtml(it.nombre)}</div>
+            <div class="meta">${escapeHtml(it.marca || "")}${it.equipo_medico ? " · " + escapeHtml(it.equipo_medico) : ""}</div>
+            <div class="stock-row">
+              <span class="stock-val">${fmtNum(it.stock)}</span>
+              <span class="price">${it.precio_unit_valor ? fmtMoney(it.precio_unit_valor, it.moneda || "") : ""}</span>
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+    return `
+      <div class="section">
+        <div style="font-size:11px;font-weight:700;color:#fff;background:#0284c7;padding:3px 9px;border-radius:6px;display:inline-block;margin-bottom:8px">
+          Estante ${n}
+        </div>
+        <div class="gallery">${cards}</div>
+      </div>`;
+  }).join("");
+}
+
+// ---- Alta / edición de armarios (solo admin) ----
+let _editingArmarioId = null;
+function openNewArmario() {
+  _editingArmarioId = null;
+  $("#armario-modal-title").textContent = "Nuevo armario";
+  $("#a-letra").value = "";
+  $("#a-letra").disabled = false;
+  $("#a-nombre").value = "";
+  openModal("modal-armario");
+}
+function openEditArmario(id) {
+  const a = (state.armarios || []).find(x => x.id === id);
+  if (!a) return;
+  _editingArmarioId = id;
+  $("#armario-modal-title").textContent = "Editar armario";
+  $("#a-letra").value = a.letra;
+  $("#a-letra").disabled = false;
+  $("#a-nombre").value = a.nombre || "";
+  openModal("modal-armario");
+}
+async function saveArmario(ev) {
+  ev && ev.preventDefault();
+  const letra = $("#a-letra").value.trim().toUpperCase();
+  if (!letra) { toast("La letra es obligatoria", "err"); return; }
+  const btn = $("#armario-save");
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Guardando…';
+  try {
+    if (_editingArmarioId) {
+      const updated = await api(`/armarios/${_editingArmarioId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ letra, nombre: $("#a-nombre").value.trim() || null }),
+      });
+      const idx = state.armarios.findIndex(x => x.id === updated.id);
+      if (idx >= 0) state.armarios[idx] = updated;
+      toast("Armario actualizado", "ok");
+    } else {
+      const created = await api("/armarios", {
+        method: "POST",
+        body: JSON.stringify({ letra, nombre: $("#a-nombre").value.trim() || null }),
+      });
+      state.armarios.push(created);
+      toast("Armario creado", "ok");
+    }
+    closeModal("modal-armario");
+    renderArmariosGrid();
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+
+let _armarioPhotoTargetId = null;
+function triggerArmarioPhotoUpload(armarioId) {
+  _armarioPhotoTargetId = armarioId;
+  $("#armario-photo-input").click();
+}
+$("#armario-photo-input").addEventListener("change", async (ev) => {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f || !_armarioPhotoTargetId) return;
+  const fd = new FormData();
+  fd.append("file", f);
+  try {
+    const updated = await api(`/armarios/${_armarioPhotoTargetId}/foto`, { method: "POST", body: fd });
+    const idx = state.armarios.findIndex(x => x.id === updated.id);
+    if (idx >= 0) state.armarios[idx] = updated;
+    toast("Foto actualizada", "ok");
+    if (state.armarioActual === updated.letra) openArmarioDetail(updated.letra);
+  } catch (e) { toast(e.message, "err"); }
+  ev.target.value = "";
+});
+
+// ---------- COMPRAS REALIZADAS (entradas con comprobante/proveedor) ----------
+let _compras = [];
+
+// Para fechas "puras" (sin hora) como comprobante_fecha, que vienen del <input type="date">
+// como "AAAA-MM-DD": se muestran en UTC a propósito para que no se corran un día.
+function fmtFechaCorta(f) {
+  try { return new Date(f).toLocaleDateString("es-AR", { timeZone: "UTC" }); } catch (e) { return f || ""; }
+}
+// Para fecha+hora reales de un movimiento (sí llevan hora y están en UTC): convertir a hora local.
+function fmtFechaMov(f) {
+  try { return new Date(_fixTZ(f)).toLocaleDateString("es-AR"); } catch (e) { return f || ""; }
+}
+
+async function loadCompras() {
+  try {
+    const movs = await api("/movimientos?tipo=IN&limit=300");
+    // Solo son "compras" las entradas con comprobante (R/F/OC).
+    // Las entradas sin comprobante son carga de stock que ya se disponía.
+    _compras = movs.filter(m => m.comprobante);
+  } catch (e) { _compras = []; }
+  renderCompras();
+}
+
+function renderCompras() {
+  const q = ($("#compras-buscar").value || "").trim().toLowerCase();
+  const items = _compras.filter(m =>
+    !q || [m.insumo_nombre, m.proveedor, m.comprobante].filter(Boolean).join(" ").toLowerCase().includes(q)
+  );
+  $("#compras-hist-count").textContent = items.length;
+  const tbl = $("#compras-hist-tabla");
+  if (!items.length) {
+    tbl.innerHTML = '<tr><td class="empty">Sin compras registradas todavía. Aparecen acá las Entradas que tengan remito, factura u orden de compra.</td></tr>';
+    return;
+  }
+  const th = 'padding:6px 8px;text-align:left;border-bottom:2px solid var(--border);color:var(--muted);font-size:11px;text-transform:uppercase;white-space:nowrap';
+  const td = 'padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap';
+  tbl.innerHTML = `
+    <tr>
+      <th style="${th}">Fecha</th>
+      <th style="${th}">Insumo</th>
+      <th style="${th};text-align:right">Cant.</th>
+      <th style="${th}">Comprobante</th>
+      <th style="${th}">Fecha compr.</th>
+      <th style="${th}">Proveedor</th>
+      <th style="${th};text-align:right">Monto</th>
+    </tr>
+    ${items.map(m => {
+      const monto = (m.precio_unit_valor && m.cantidad)
+        ? `${m.moneda || ""} ${(m.precio_unit_valor * m.cantidad).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`
+        : "—";
+      return `
+      <tr onclick="openDetail(${m.insumo_id})" style="cursor:pointer">
+        <td style="${td}">${fmtFechaMov(m.fecha)}</td>
+        <td style="${td};white-space:normal">${escapeHtml((m.insumo_nombre || "—").toUpperCase())}</td>
+        <td style="${td};text-align:right;font-weight:600">${fmtNum(m.cantidad)}</td>
+        <td style="${td}">${m.comprobante ? "🧾 " + escapeHtml(m.comprobante) : "—"}</td>
+        <td style="${td}">${m.comprobante_fecha ? fmtFechaCorta(m.comprobante_fecha) : "—"}</td>
+        <td style="${td}">${m.proveedor ? escapeHtml(m.proveedor) : "—"}</td>
+        <td style="${td};text-align:right">${monto}</td>
+      </tr>`;
+    }).join("")}
+  `;
+}
+
+function renderPedidos() {
+  const items = state.pedidoDraft || [];
+  $("#pedido-count").textContent = items.length;
+  const cont = $("#pedido-items");
+  if (!items.length) {
+    cont.innerHTML = '<div class="empty">Toca "Generar sugerencia" para empezar.</div>';
+    $("#pedido-totales").style.display = "none";
+  } else {
+    // Agrupamos por marca para saber de un vistazo a qué proveedor pedirle cada tanda.
+    const idxPorItem = items.map((it, idx) => ({ ...it, _idx: idx }));
+    const grupos = {};
+    idxPorItem.forEach(it => {
+      const marca = (it.marca || "").trim() || "Sin marca";
+      (grupos[marca] = grupos[marca] || []).push(it);
+    });
+    const marcasOrdenadas = Object.keys(grupos).sort((a, b) => a === "Sin marca" ? 1 : b === "Sin marca" ? -1 : a.localeCompare(b));
+
+    cont.innerHTML = marcasOrdenadas.map(marca => {
+      const rows = grupos[marca];
+      return `
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;font-weight:700;color:#fff;background:#0f766e;padding:4px 10px;border-radius:6px;display:inline-block;margin-bottom:4px">
+            🏭 ${escapeHtml(marca)} <span style="font-weight:400;opacity:.85">(${rows.length})</span>
+          </div>
+          ${rows.map(it => `
+            <div class="movement-row">
+              <div class="ico in">📦</div>
+              <div class="body">
+                <div class="top">
+                  <strong>${escapeHtml(it.nombre)}</strong>
+                  <span class="qty">
+                    <input type="number" min="0" value="${it.cantidad}" onchange="setPedidoQty(${it._idx}, this.value)"
+                      style="width:64px;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;text-align:right">
+                  </span>
+                </div>
+                <div class="meta">
+                  Stock: ${it.stock_actual ?? "—"} · Prom: ${it.prom_anual ?? "—"} ·
+                  ${it.precio_unit ? `<span class="pill ${it.moneda === "USD" ? "usd" : "ars"}">${it.moneda || ""} ${it.precio_unit}</span>` : ""}
+                  <button class="btn btn-sm btn-secondary" style="margin-left:6px;padding:2px 8px" onclick="rmPedidoItem(${it._idx})">✕</button>
+                </div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }).join("");
+    const totUSD = items.reduce((a, x) => a + (Number(x.subtotal_usd) || 0), 0);
+    const totARS = items.reduce((a, x) => a + (Number(x.subtotal_ars) || 0), 0);
+    $("#ped-tot-usd").textContent = "USD " + totUSD.toLocaleString("es-AR", { maximumFractionDigits: 2 });
+    $("#ped-tot-ars").textContent = "AR$ " + totARS.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+    $("#pedido-totales").style.display = "flex";
+  }
+  $("#pedidos-hist-count").textContent = state.pedidos.length;
+  const hist = $("#pedidos-historial");
+  if (!state.pedidos.length) {
+    hist.innerHTML = '<div class="empty">Aún no guardaste ningún pedido.</div>';
+  } else {
+    hist.innerHTML = state.pedidos.map(p => `
+      <div class="movement-row" style="cursor:default">
+        <div class="ico aj">📋</div>
+        <div class="body">
+          <div class="top">
+            <strong>${fmtDate(p.fecha)}</strong>
+            <span class="qty">${p.items.length} items</span>
+          </div>
+          <div class="meta">
+            USD ${(p.total_usd || 0).toLocaleString("es-AR", { maximumFractionDigits: 2 })} ·
+            AR$ ${(p.total_ars || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+            ${p.notas ? "· " + escapeHtml(p.notas) : ""}
+            <button class="btn btn-sm btn-secondary" style="margin-left:6px;padding:2px 8px" onclick="verPedido(${p.id})">👁️</button>
+            <button class="btn btn-sm btn-danger" style="margin-left:4px;padding:2px 8px" onclick="deletePedido(${p.id})">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `).join("");
+  }
+}
+
+async function generarSugerencia() {
+  try {
+    const sug = await api("/pedidos/sugerencia");
+    state.pedidoDraft = sug || [];
+    renderPedidos();
+    if (!state.pedidoDraft.length) toast("No hay sugerencias (stock suficiente)", "ok");
+    else toast(`Sugeridos ${state.pedidoDraft.length} items`, "ok");
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function generarSugerenciaReal() {
+  const dias = $("#comp-dias").value;
+  const meses = $("#comp-meses").value;
+  try {
+    const res = await api(`/compras/resumen?dias=${dias}&meses_cobertura=${meses}`);
+    const items = res.items || [];
+    // El borrador del pedido se arma solo con lo que hace falta comprar
+    state.pedidoDraft = items.filter(x => x.cantidad > 0).map(x => ({
+      insumo_id: x.insumo_id, nombre: x.nombre, marca: x.marca, stock_actual: x.stock_actual,
+      prom_anual: x.prom_anual, cantidad: x.cantidad, precio_unit: x.precio_unit,
+      moneda: x.moneda, subtotal_usd: x.subtotal_usd, subtotal_ars: x.subtotal_ars,
+    }));
+    renderComprasTabla(items);
+    renderPedidos();
+    if (!state.pedidoDraft.length) toast("Nada para comprar: el stock cubre el consumo del período", "ok");
+    else toast(`${state.pedidoDraft.length} insumos necesitan compra`, "ok");
+  } catch (e) { toast(e.message, "err"); }
+}
+
+function _normNombre(s) {
+  return (s || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toUpperCase();
+}
+
+async function generarSugerenciaHistorica() {
+  const cantAnios = $("#hist-anios").value;  // "3" | "5" | "6" (6 = todo el histórico disponible)
+  const margenPct = Number($("#hist-margen").value) || 0;
+  try {
+    if (!state.insumos || !state.insumos.length) { try { await loadInsumos(); } catch {} }
+    const hist = await (await fetch("/static/data/consumo_historico.json")).json();
+    const years = hist.years || [];
+    const anioActual = String(new Date().getFullYear());
+    // Tomamos años completos (excluimos el año en curso) y de esos, los N más recientes.
+    const aniosCompletos = years.filter(y => y !== anioActual);
+    const n = cantAnios === "6" ? aniosCompletos.length : Math.min(Number(cantAnios), aniosCompletos.length);
+    const aniosAPromediar = aniosCompletos.slice(-n);
+    if (!aniosAPromediar.length) { toast("No hay años completos en el histórico para promediar", "err"); return; }
+
+    // índice del catálogo actual por nombre normalizado, para cruzar stock/precio/id
+    const porNombre = {};
+    (state.insumos || []).forEach(it => { porNombre[_normNombre(it.nombre)] = it; });
+
+    let sinDatos = 0, noEncontrados = 0;
+    const draft = [];
+    (hist.items || []).forEach(hItem => {
+      const suma = aniosAPromediar.reduce((s, y) => s + (Number(hItem[y]) || 0), 0);
+      const promedio = suma / aniosAPromediar.length;
+      if (promedio <= 0) { sinDatos++; return; }
+      const insumo = porNombre[_normNombre(hItem.nombre)];
+      if (!insumo) { noEncontrados++; return; }
+      const conMargen = promedio * (1 + margenPct / 100);
+      const cantidad = Math.max(0, Math.ceil(conMargen - (insumo.stock || 0)));
+      if (cantidad <= 0) return;
+      const precio = insumo.precio_unit_valor || 0;
+      const fx = state.config.fx_rate || 1200;
+      const subUSD = insumo.moneda === "USD" ? precio * cantidad : (insumo.moneda === "ARS" ? (precio * cantidad) / fx : 0);
+      const subARS = insumo.moneda === "ARS" ? precio * cantidad : (insumo.moneda === "USD" ? precio * cantidad * fx : 0);
+      draft.push({
+        insumo_id: insumo.id, nombre: insumo.nombre, marca: insumo.marca, stock_actual: insumo.stock,
+        prom_anual: Math.round(promedio), cantidad,
+        precio_unit: precio, moneda: insumo.moneda,
+        subtotal_usd: +subUSD.toFixed(2), subtotal_ars: +subARS.toFixed(2),
+      });
+    });
+    draft.sort((a, b) => b.cantidad - a.cantidad);
+    state.pedidoDraft = draft;
+    renderPedidos();
+    const etiquetaAnios = aniosAPromediar.join(", ");
+    if (!draft.length) {
+      toast(`Sin sugerencias: el stock ya cubre el promedio ${etiquetaAnios} (+${margenPct}%)`, "ok");
+    } else {
+      toast(`${draft.length} insumos sugeridos según promedio ${etiquetaAnios} +${margenPct}%` +
+        (noEncontrados ? ` · ${noEncontrados} del histórico no están en el catálogo actual` : ""), "ok");
+    }
+  } catch (e) { toast(e.message, "err"); }
+}
+
+function renderComprasTabla(items) {
+  const sec = $("#compras-real");
+  const tbl = $("#compras-tabla");
+  $("#compras-count").textContent = items.length;
+  if (!items.length) {
+    sec.style.display = "";
+    tbl.innerHTML = '<tr><td class="empty">Sin movimientos de entrada/salida en el período elegido.</td></tr>';
+    return;
+  }
+  const th = 'padding:6px 8px;text-align:right;border-bottom:2px solid var(--border);color:var(--muted);font-size:11px;text-transform:uppercase;white-space:nowrap';
+  const td = 'padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap';
+  tbl.innerHTML = `
+    <tr>
+      <th style="${th};text-align:left">Insumo</th>
+      <th style="${th}">Stock</th>
+      <th style="${th}">Consumo/mes</th>
+      <th style="${th}">Comprado</th>
+      <th style="${th}">A comprar</th>
+    </tr>
+    ${items.map(x => `
+      <tr onclick="openDetail(${x.insumo_id})" style="cursor:pointer">
+        <td style="${td};text-align:left;white-space:normal">${escapeHtml(x.nombre)}</td>
+        <td style="${td}">${fmtNum(x.stock_actual)}</td>
+        <td style="${td}">${x.consumo_mensual}</td>
+        <td style="${td}">${fmtNum(x.comprado_periodo)}</td>
+        <td style="${td};font-weight:700;color:${x.cantidad > 0 ? "var(--danger)" : "var(--ok)"}">${x.cantidad > 0 ? fmtNum(x.cantidad) : "✓"}</td>
+      </tr>
+    `).join("")}
+  `;
+  sec.style.display = "";
+}
+
+function setPedidoQty(idx, v) {
+  const it = state.pedidoDraft[idx];
+  if (!it) return;
+  const fx = state.config.fx_rate || 1200;
+  const cant = Math.max(0, parseInt(v) || 0);
+  it.cantidad = cant;
+  const precio = parseFloat(it.precio_unit) || 0;
+  if (it.moneda === "USD") {
+    it.subtotal_usd = +(precio * cant).toFixed(2);
+    it.subtotal_ars = +(precio * cant * fx).toFixed(2);
+  } else if (it.moneda === "ARS") {
+    it.subtotal_ars = +(precio * cant).toFixed(2);
+    it.subtotal_usd = +(precio * cant / fx).toFixed(2);
+  } else { it.subtotal_usd = 0; it.subtotal_ars = 0; }
+  renderPedidos();
+}
+
+function rmPedidoItem(idx) {
+  state.pedidoDraft.splice(idx, 1);
+  renderPedidos();
+}
+
+function limpiarPedido() {
+  state.pedidoDraft = [];
+  renderPedidos();
+}
+
+async function guardarPedido() {
+  const items = (state.pedidoDraft || []).filter(it => (parseInt(it.cantidad) || 0) > 0);
+  if (!items.length) { toast("Sin items para guardar", "err"); return; }
+  const notas = prompt("Notas del pedido (opcional):") || null;
+  try {
+    await api("/pedidos", {
+      method: "POST",
+      body: JSON.stringify({
+        items: items.map(it => ({
+          insumo_id: it.insumo_id, nombre: it.nombre, marca: it.marca || null, cantidad: it.cantidad,
+          precio_unit: it.precio_unit, moneda: it.moneda,
+          subtotal_usd: it.subtotal_usd, subtotal_ars: it.subtotal_ars,
+        })),
+        notas
+      })
+    });
+    toast("Pedido guardado", "ok");
+    state.pedidoDraft = [];
+    await loadPedidos();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function deletePedido(id) {
+  if (!confirm("¿Eliminar este pedido del historial?")) return;
+  try {
+    await api("/pedidos/" + id, { method: "DELETE" });
+    toast("Pedido eliminado", "ok");
+    await loadPedidos();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+function verPedido(id) {
+  const p = state.pedidos.find(x => x.id === id);
+  if (!p) return;
+  const lines = p.items.map(i => `• ${i.nombre}${i.marca ? " (" + i.marca + ")" : ""} — cant ${i.cantidad} — ${i.moneda || ""} ${i.precio_unit || ""}`).join("\n");
+  alert(`Pedido #${id}\nFecha: ${fmtDate(p.fecha)}\nItems: ${p.items.length}\nTotal USD: ${(p.total_usd || 0).toFixed(2)}\nTotal ARS: ${(p.total_ars || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 })}\n\n${lines}\n\n${p.notas ? "Notas: " + p.notas : ""}`);
+}
+
+// ============================================================================
+// ---------- CONFIGURACIÓN ----------
+// ============================================================================
+function loadConfigView() {
+  if (!isAdmin()) { showSubview("list"); return; }
+  $("#cfg-fx").value = state.config.fx_rate || 1200;
+  $("#cfg-threshold").value = state.config.threshold_pct || 20;
+  renderServicios();
+  loadUsersView();
+}
+
+// ---------- Usuarios (solo admin) ----------
+let _usersCache = [];
+let _editingUserId = null;
+async function loadUsersView() {
+  const cont = $("#users-list");
+  if (!cont) return;
+  cont.innerHTML = '<div class="center-loader"><span class="spin"></span></div>';
+  try {
+    _usersCache = await api("/auth/users");
+    $("#users-count").textContent = _usersCache.length;
+    cont.innerHTML = _usersCache.map(u => `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:6px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${escapeHtml(u.nombre || u.username)}${u.activo ? "" : ' <span style="color:#991b1b;font-size:11px">(inactivo)</span>'}</div>
+          <div style="font-size:11.5px;color:var(--muted)">@${escapeHtml(u.username)} · ${u.rol === "admin" ? "Administrador" : "Usuario general"}</div>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="openEditUser(${u.id})">✏️</button>
+      </div>
+    `).join("") || '<div class="empty" style="padding:10px">Sin usuarios.</div>';
+  } catch (e) {
+    cont.innerHTML = `<div class="alert alert-danger">⚠ ${escapeHtml(e.message)}</div>`;
+  }
+}
+function openNewUser() {
+  _editingUserId = null;
+  $("#user-modal-title").textContent = "Nuevo usuario";
+  $("#u-username").value = "";
+  $("#u-username").disabled = false;
+  $("#u-nombre").value = "";
+  $("#u-rol").value = "usuario";
+  $("#u-activo").value = "true";
+  $("#u-password").value = "";
+  $("#u-password").placeholder = "Contraseña";
+  openModal("modal-user");
+}
+function openEditUser(id) {
+  const u = _usersCache.find(x => x.id === id);
+  if (!u) return;
+  _editingUserId = id;
+  $("#user-modal-title").textContent = "Editar usuario";
+  $("#u-username").value = u.username;
+  $("#u-username").disabled = true;
+  $("#u-nombre").value = u.nombre || "";
+  $("#u-rol").value = u.rol;
+  $("#u-activo").value = String(!!u.activo);
+  $("#u-password").value = "";
+  $("#u-password").placeholder = "Dejar vacío para no cambiar";
+  openModal("modal-user");
+}
+async function saveUser(ev) {
+  ev && ev.preventDefault();
+  const btn = $("#user-save");
+  const pw = $("#u-password").value;
+  if (!_editingUserId && (!$("#u-username").value.trim() || !pw)) {
+    toast("Usuario y contraseña son obligatorios", "err");
+    return;
+  }
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Guardando…';
+  try {
+    if (_editingUserId) {
+      const payload = {
+        nombre: $("#u-nombre").value.trim() || null,
+        rol: $("#u-rol").value,
+        activo: $("#u-activo").value === "true",
+      };
+      if (pw) payload.password = pw;
+      await api(`/auth/users/${_editingUserId}`, { method: "PATCH", body: JSON.stringify(payload) });
+      toast("Usuario actualizado", "ok");
+    } else {
+      await api("/auth/users", {
+        method: "POST",
+        body: JSON.stringify({
+          username: $("#u-username").value.trim(),
+          password: pw,
+          nombre: $("#u-nombre").value.trim() || null,
+          rol: $("#u-rol").value,
+          activo: $("#u-activo").value === "true",
+        }),
+      });
+      toast("Usuario creado", "ok");
+    }
+    closeModal("modal-user");
+    await loadUsersView();
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+
+// Parser: agrupa ["UTI","UTI / H1","UCO","UCO / D1"] en {UTI:["H1"], UCO:["D1"]}
+// El " / " (espacio-slash-espacio) separa servicio padre de la sub-área.
+const SUB_SEP = " / ";
+function _splitSvc(s) {
+  const i = (s || "").indexOf(SUB_SEP);
+  if (i < 0) return { parent: (s || "").trim(), sub: null };
+  return { parent: s.slice(0, i).trim(), sub: s.slice(i + SUB_SEP.length).trim() };
+}
+function _groupServicios(list) {
+  // mantiene orden de aparición de los padres
+  const order = [];
+  const groups = {};
+  (list || []).forEach(s => {
+    const { parent, sub } = _splitSvc(s);
+    if (!parent) return;
+    if (!(parent in groups)) { groups[parent] = []; order.push(parent); }
+    if (sub) groups[parent].push(sub);
+  });
+  // dedup sub-áreas
+  order.forEach(p => { groups[p] = Array.from(new Set(groups[p])); });
+  return { order, groups };
+}
+// Reconstruir la lista plana a partir de {parent: [subs]}
+function _flattenGroups(order, groups) {
+  const out = [];
+  order.forEach(p => {
+    out.push(p);
+    (groups[p] || []).forEach(sub => out.push(p + SUB_SEP + sub));
+  });
+  return out;
+}
+
+function renderServicios() {
+  const list = state.config.servicios || [];
+  const { order, groups } = _groupServicios(list);
+  $("#svc-count").textContent = order.length + (Object.values(groups).reduce((a, b) => a + b.length, 0) ? " · " + Object.values(groups).reduce((a, b) => a + b.length, 0) + " sub-áreas" : "");
+  const cont = $("#svc-list");
+  if (!order.length) {
+    cont.innerHTML = '<div class="empty" style="padding:14px">Sin servicios definidos.</div>';
+    return;
+  }
+  cont.innerHTML = order.map((parent, pi) => {
+    const subs = groups[parent] || [];
+    const subsHtml = subs.map((sub, si) => `
+      <div style="display:flex;gap:6px;align-items:center;padding:4px 0 4px 24px">
+        <span style="color:#9ca3af;font-size:14px;flex-shrink:0">↳</span>
+        <input type="text" value="${escapeHtml(sub)}"
+          onchange="updateSubarea('${escapeHtml(parent).replace(/'/g,'&#39;')}', ${si}, this.value)"
+          style="flex:1;border:1px solid #d1d5db;padding:5px 8px;border-radius:6px;font-size:12px;background:#fff"
+          placeholder="Ej: Estación enfermería 1, H1, D1, Box 3…">
+        <button class="btn btn-danger btn-sm" style="padding:3px 7px;font-size:11px"
+          onclick="rmSubarea('${escapeHtml(parent).replace(/'/g,'&#39;')}', ${si})" title="Eliminar sub-área">✕</button>
+      </div>
+    `).join("");
+    return `
+      <div style="background:#f9fafb;padding:8px 10px;border-radius:8px;margin-bottom:8px;border:1px solid #e5e7eb">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:${subs.length ? "6px" : "0"}">
+          <span style="font-size:16px">🏥</span>
+          <input type="text" value="${escapeHtml(parent)}"
+            onchange="renameParent(${pi}, this.value)"
+            style="flex:1;border:1px solid #d1d5db;padding:6px 10px;border-radius:6px;font-size:13px;font-weight:600">
+          <button class="btn btn-secondary btn-sm" style="padding:5px 9px;font-size:12px"
+            onclick="addSubarea('${escapeHtml(parent).replace(/'/g,'&#39;')}')" title="Agregar sub-área">➕ Sub-área</button>
+          <button class="btn btn-danger btn-sm" style="padding:5px 9px"
+            onclick="rmServicioParent(${pi})" title="Eliminar servicio y todas sus sub-áreas">✕</button>
+        </div>
+        ${subsHtml}
+      </div>
+    `;
+  }).join("");
+}
+
+function renameParent(parentIdx, newName) {
+  const { order, groups } = _groupServicios(state.config.servicios || []);
+  const oldName = order[parentIdx];
+  const v = (newName || "").trim();
+  if (!v) { toast("El nombre no puede estar vacío", "err"); renderServicios(); return; }
+  if (v === oldName) return;
+  if (order.includes(v) && v !== oldName) { toast("Ya existe un servicio con ese nombre", "err"); renderServicios(); return; }
+  // renombrar respetando el orden
+  const newGroups = {};
+  const newOrder = order.map(p => p === oldName ? v : p);
+  newOrder.forEach((p, i) => { newGroups[p] = groups[order[i]]; });
+  state.config.servicios = _flattenGroups(newOrder, newGroups);
+}
+
+function rmServicioParent(parentIdx) {
+  const { order, groups } = _groupServicios(state.config.servicios || []);
+  const parent = order[parentIdx];
+  const subCount = (groups[parent] || []).length;
+  const msg = subCount
+    ? `¿Eliminar el servicio "${parent}" y sus ${subCount} sub-área${subCount === 1 ? "" : "s"}?`
+    : `¿Eliminar el servicio "${parent}"?`;
+  if (!confirm(msg)) return;
+  delete groups[parent];
+  state.config.servicios = _flattenGroups(order.filter(p => p !== parent), groups);
+  renderServicios();
+}
+
+function addSubarea(parent) {
+  const v = prompt(`Nueva sub-área para "${parent}":\n(Ej: Estación enfermería 1, H1, D1, Box 3)`);
+  if (!v || !v.trim()) return;
+  const { order, groups } = _groupServicios(state.config.servicios || []);
+  if (!(parent in groups)) groups[parent] = [];
+  if (groups[parent].includes(v.trim())) { toast("Esa sub-área ya existe", "err"); return; }
+  groups[parent].push(v.trim());
+  state.config.servicios = _flattenGroups(order, groups);
+  renderServicios();
+}
+
+function updateSubarea(parent, subIdx, newName) {
+  const { order, groups } = _groupServicios(state.config.servicios || []);
+  if (!(parent in groups)) return;
+  const v = (newName || "").trim();
+  if (!v) { toast("El nombre no puede estar vacío", "err"); renderServicios(); return; }
+  if (groups[parent].includes(v) && groups[parent][subIdx] !== v) {
+    toast("Esa sub-área ya existe", "err"); renderServicios(); return;
+  }
+  groups[parent][subIdx] = v;
+  state.config.servicios = _flattenGroups(order, groups);
+}
+
+function rmSubarea(parent, subIdx) {
+  const { order, groups } = _groupServicios(state.config.servicios || []);
+  if (!(parent in groups)) return;
+  const sub = groups[parent][subIdx];
+  if (!confirm(`¿Eliminar la sub-área "${sub}" de ${parent}?`)) return;
+  groups[parent].splice(subIdx, 1);
+  state.config.servicios = _flattenGroups(order, groups);
+  renderServicios();
+}
+
+function agregarServicio() {
+  const v = prompt("Nombre del servicio:\n(Después podrás agregarle sub-áreas como H1, D1, Estación 1, etc.)");
+  if (!v || !v.trim()) return;
+  const parent = v.trim();
+  const { order } = _groupServicios(state.config.servicios || []);
+  if (order.includes(parent)) { toast("Ya existe ese servicio", "err"); return; }
+  state.config.servicios = (state.config.servicios || []).concat([parent]);
+  renderServicios();
+}
+
+async function saveConfig() {
+  const body = {
+    fx_rate: parseFloat($("#cfg-fx").value) || 1200,
+    threshold_pct: parseInt($("#cfg-threshold").value) || 20,
+    servicios: state.config.servicios || [],
+  };
+  try {
+    state.config = await api("/config", { method: "PUT", body: JSON.stringify(body) });
+    toast("Configuración guardada", "ok");
+    renderServicios();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function resetStockCero() {
+  // Asegurarse de tener la lista actualizada
+  if (!state.insumos || !state.insumos.length) {
+    try { await loadInsumos(); } catch {}
+  }
+  const total = (state.insumos || []).length;
+  if (!total) { toast("No hay insumos para reiniciar", "err"); return; }
+  const conStock = state.insumos.filter(i => (i.stock || 0) > 0).length;
+  const msg = `¿Reiniciar el stock a 0 para los ${total} insumos?\n\n` +
+              `Hay ${conStock} insumo${conStock === 1 ? "" : "s"} con stock > 0.\n\n` +
+              `Se mantiene TODO el catálogo (nombres, fotos, precios, ubicaciones, servicios).\n` +
+              `Los movimientos y pedidos NO se borran.\n\n` +
+              `Esta acción no se puede deshacer.`;
+  if (!confirm(msg)) return;
+
+  const btn = event && event.target ? event.target : null;
+  const origText = btn ? btn.innerHTML : null;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Reiniciando…'; }
+
+  let ok = 0, fail = 0;
+  // Solo los que tienen stock > 0 — los que ya están en 0 no necesitan llamada
+  const targets = state.insumos.filter(i => (i.stock || 0) !== 0);
+  for (const it of targets) {
+    try {
+      await api("/insumos/" + it.id, { method: "PATCH", body: JSON.stringify({ stock: 0 }) });
+      ok++;
+    } catch (e) {
+      console.warn("reset stock fail", it.id, e);
+      fail++;
+    }
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+  try { await loadInsumos(); } catch {}
+  try { await refreshAlertBadge(); } catch {}
+  if (fail === 0) {
+    toast(`✅ Stock reiniciado en ${ok} insumo${ok === 1 ? "" : "s"}`, "ok");
+  } else {
+    toast(`Reiniciados ${ok} · Fallaron ${fail}`, "err");
+  }
+}
+
+// ============================================================================
+// ---------- IMPORT / EXPORT ----------
+// ============================================================================
+async function exportBackup() {
+  try {
+    const r = await fetch(API_BASE + "/backup", {
+      headers: state.token ? { "Authorization": "Bearer " + state.token } : {}
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `backup_stock_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("Backup descargado", "ok");
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function importBackup(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  if (!confirm("¿Importar este backup? Se hace UPSERT por nombre y se agregan movimientos/pedidos.")) {
+    ev.target.value = ""; return;
+  }
+  try {
+    const txt = await f.text();
+    const data = JSON.parse(txt);
+    const r = await fetch(API_BASE + "/backup?mode=merge", {
+      method: "POST",
+      headers: Object.assign(
+        { "Content-Type": "application/json" },
+        state.token ? { "Authorization": "Bearer " + state.token } : {}
+      ),
+      body: JSON.stringify(data),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const counts = await r.json();
+    toast(`Importado: ${counts.insumos_nuevos} nuevos, ${counts.insumos_actualizados} act., ${counts.movimientos} movs, ${counts.pedidos} pedidos`, "ok");
+    await loadInsumos(); await loadConfig(); await refreshAlertBadge();
+  } catch (e) { toast(e.message, "err"); }
+  ev.target.value = "";
+}
+
+async function importExcel(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append("file", f);
+  try {
+    const r = await fetch(API_BASE + "/import/excel", {
+      method: "POST", body: fd,
+      headers: state.token ? { "Authorization": "Bearer " + state.token } : {},
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const res = await r.json();
+    toast(`Excel: ${res.creados} nuevos, ${res.actualizados} actualizados, ${res.saltados} saltados`, "ok");
+    await loadInsumos(); await refreshAlertBadge();
+  } catch (e) { toast(e.message, "err"); }
+  ev.target.value = "";
+}
+
+function downloadPlantilla() {
+  window.location.href = API_BASE + "/plantilla";
+}
+
+// ---------- Eventos ----------
+$("#search-box").addEventListener("input", () => renderList());
+$("#filter-equipo").addEventListener("change", renderList);
+$("#filter-stock").addEventListener("change", renderList);
+$("#hist-search").addEventListener("input", renderHistory);
+$("#hist-tipo").addEventListener("change", renderHistory);
+$("#compras-buscar").addEventListener("input", renderCompras);
+
+// chips de período y filtro de servicio para Consumos
+document.querySelectorAll(".cons-chip").forEach(b => b.addEventListener("click", () => {
+  _consPeriod = b.dataset.period;
+  document.querySelectorAll(".cons-chip").forEach(x => { x.classList.remove("btn-primary"); x.classList.add("btn-secondary"); });
+  b.classList.remove("btn-secondary"); b.classList.add("btn-primary");
+  renderConsumos();
+}));
+document.getElementById("cons-svc-filter").addEventListener("change", renderConsumos);
+// toggle Lista / Gráficos
+document.querySelectorAll(".cons-tab-btn").forEach(b => b.addEventListener("click", () => setConsTab(b.dataset.tab)));
+// toggle Mensual / Anual
+document.querySelectorAll(".cons-gran-btn").forEach(b => b.addEventListener("click", () => setConsGran(b.dataset.gran)));
+$("#login-form").addEventListener("submit", doLogin);
+$("#user-form").addEventListener("submit", saveUser);
+$("#armario-form").addEventListener("submit", saveArmario);
+$("#form-insumo").addEventListener("submit", saveInsumo);
+$("#mov-form").addEventListener("submit", saveMov);
+$$("#bottom-nav button").forEach(b => b.addEventListener("click", () => showSubview(b.dataset.nav)));
+
+$$(".modal-bg").forEach(bg => bg.addEventListener("click", (e) => {
+  if (e.target === bg) bg.classList.remove("active");
+}));
+
+// ---------- Intro ----------
+let introTimer = null;
+function skipIntro() {
+  const el = document.getElementById("intro-screen");
+  if (!el || el.classList.contains("intro-closing")) return;
+  clearTimeout(introTimer);
+  el.classList.add("intro-closing");
+  setTimeout(() => el.classList.add("intro-hidden"), 800);
+}
+(function initIntro() {
+  const el = document.getElementById("intro-screen");
+  if (!el) return;
+  introTimer = setTimeout(skipIntro, 16400);
+})();
+
+// ---------- Boot ----------
+(async function () {
+  if (window.location.protocol === "file:") {
+    document.body.innerHTML = `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#0f766e,#0284c7);font-family:-apple-system,Segoe UI,Roboto,sans-serif">
+        <div style="background:#fff;border-radius:16px;padding:28px;max-width:480px;box-shadow:0 14px 40px rgba(0,0,0,.18)">
+          <h1 style="color:#991b1b;font-size:20px;margin-bottom:10px">⚠ Abriste el archivo equivocado</h1>
+          <p style="color:#374151;font-size:14px;line-height:1.5;margin-bottom:14px">
+            Estas viendo el HTML como archivo local (<code>file://</code>). Asi el navegador no puede hablar con la API.
+          </p>
+          <p style="text-align:center;margin:18px 0">
+            <a href="http://localhost:8000/" style="background:#0f766e;color:#fff;padding:12px 22px;border-radius:10px;font-weight:600;text-decoration:none;display:inline-block;font-size:15px">http://localhost:8000/</a>
+          </p>
+        </div>
+      </div>`;
+    return;
+  }
+  if (!state.token) {
+    showLogin();
+    return;
+  }
+  try {
+    state.user = await api("/auth/me");
+    localStorage.setItem(USER_KEY, JSON.stringify(state.user));
+    await bootApp();
+  } catch {
+    // api() ya limpia el token y muestra el login en un 401; esto cubre
+    // cualquier otro error (ej. servidor caído) mostrando el login igual.
+    showLogin();
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contenido del armario</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+body{background:#f4f6f9;color:#222;padding:16px}
+h1{font-size:22px;color:#0f766e;margin-bottom:2px}
+.sub{color:#666;font-size:13px;margin-bottom:16px}
+.estante{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.estante h2{font-size:15px;color:#0f766e;margin-bottom:8px;display:flex;justify-content:space-between}
+.estante h2 .badge{background:#f0fdfa;color:#0f766e;border-radius:999px;padding:2px 10px;font-size:12px}
+.vacio{color:#999;font-size:13px;font-style:italic}
+.item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
+.item:last-child{border-bottom:none}
+.item .stock{font-weight:700;color:#0f766e;min-width:40px;text-align:right}
+.item.bajo .stock{color:#dc2626}
+.err{background:#fee2e2;color:#991b1b;padding:14px;border-radius:8px;margin-top:20px}
+.foot{margin-top:20px;font-size:11px;color:#999;text-align:center}
+</style>
+</head>
+<body>
+<h1 id="titulo">Cargando...</h1>
+<div class="sub" id="sub"></div>
+<div id="contenido"></div>
+<div class="foot" id="foot"></div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const letra = (params.get('letra') || '').toUpperCase();
+const API = window.location.origin;
+
+async function cargar(){
+  if(!letra){
+    document.getElementById('titulo').textContent = 'Falta la letra del armario';
+    return;
+  }
+  try{
+    const r = await fetch(`${API}/publico/armario/${letra}`);
+    const data = await r.json();
+    document.getElementById('titulo').textContent = `Armario ${data.letra}` + (data.nombre ? ' — ' + data.nombre : '');
+    document.getElementById('sub').textContent = data.existe ? '' : '(este armario todavía no está dado de alta en el sistema)';
+
+    const cont = document.getElementById('contenido');
+    cont.innerHTML = data.estantes.map(e => `
+      <div class="estante">
+        <h2>Estante ${e.numero} <span class="badge">${e.insumos.length} ítem${e.insumos.length===1?'':'s'}</span></h2>
+        ${e.insumos.length === 0
+          ? '<div class="vacio">Sin insumos asignados a este estante</div>'
+          : e.insumos.map(i => `
+              <div class="item ${(i.stock||0) <= (i.stock_minimo||1) ? 'bajo' : ''}">
+                <span>${i.nombre}</span>
+                <span class="stock">${i.stock}</span>
+              </div>`).join('')
+        }
+      </div>
+    `).join('');
+
+    if(data.otros_estantes && data.otros_estantes.length){
+      cont.innerHTML += `<div class="estante"><h2>Otras ubicaciones</h2>` +
+        data.otros_estantes.map(i => `<div class="item"><span>${i.nombre} (estante ${i.estante})</span><span class="stock">${i.stock}</span></div>`).join('') +
+        `</div>`;
+    }
+
+    const f = new Date(data.actualizado);
+    document.getElementById('foot').textContent = 'Actualizado: ' + f.toLocaleString('es-AR');
+  }catch(e){
+    document.getElementById('titulo').textContent = 'No se pudo cargar';
+    document.getElementById('contenido').innerHTML = `<div class="err">No se pudo conectar con el servidor. Verificá que la PC esté encendida y conectada al wifi. (${e.message})</div>`;
+  }
+}
+cargar();
+</script>
+</body>
+</html>
