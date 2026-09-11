@@ -1,0 +1,1767 @@
+"""Stock de Insumos - API local (FastAPI + SQLite).
+
+Como correr (desde la carpeta api/):
+    python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+Docs interactivos: http://localhost:8000/docs
+Frontend SPA:      http://localhost:8000/
+"""
+from __future__ import annotations
+
+import io
+import json
+import re
+import tempfile
+import unicodedata
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import List
+
+import openpyxl
+
+try:
+    from PIL import Image
+    import imagehash
+except ImportError:  # Pillow/ImageHash todavia no instalados en el venv del server.
+    Image = None
+    imagehash = None
+from fastapi import Body, Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session
+
+import models
+import schemas
+from auth import (
+    create_access_token,
+    get_current_user,
+    hash_password,
+    require_admin,
+    verify_password,
+)
+from database import engine, get_db, SessionLocal
+
+# --- Paths ------------------------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = BASE_DIR.parent
+FOTOS_DIR = PROJECT_DIR / "fotos_insumos"
+UPLOADS_DIR = BASE_DIR / "uploads"
+UPLOADS_DIR.mkdir(exist_ok=True)
+PLANTILLA_PATH = PROJECT_DIR / "Plantilla_Importar_Insumos.xlsx"
+STATIC_DIR = BASE_DIR / "static"
+
+# --- App / DB ---------------------------------------------------------------
+models.Base.metadata.create_all(bind=engine)
+
+
+def _ensure_new_columns():
+    """create_all no altera tablas existentes: agregamos columnas nuevas via
+    ALTER TABLE idempotente para que la app arranque sin migracion manual."""
+    from sqlalchemy import inspect as sa_inspect, text
+
+    insp = sa_inspect(engine)
+    pending = []
+    if "movimientos" in insp.get_table_names():
+        cols = {c["name"] for c in insp.get_columns("movimientos")}
+        if "comprobante" not in cols:
+            pending.append("ALTER TABLE movimientos ADD COLUMN comprobante VARCHAR")
+        if "comprobante_fecha" not in cols:
+            pending.append("ALTER TABLE movimientos ADD COLUMN comprobante_fecha DATETIME")
+        if "proveedor" not in cols:
+            pending.append("ALTER TABLE movimientos ADD COLUMN proveedor VARCHAR")
+        if "stock_before" not in cols:
+            pending.append("ALTER TABLE movimientos ADD COLUMN stock_before INTEGER")
+    if "insumos" in insp.get_table_names():
+        cols = {c["name"] for c in insp.get_columns("insumos")}
+        if "foto_phash" not in cols:
+            pending.append("ALTER TABLE insumos ADD COLUMN foto_phash VARCHAR")
+        if "foto_colorsig" not in cols:
+            pending.append("ALTER TABLE insumos ADD COLUMN foto_colorsig VARCHAR")
+        if "tipo_compra" not in cols:
+            pending.append("ALTER TABLE insumos ADD COLUMN tipo_compra VARCHAR")
+    if pending:
+        with engine.begin() as conn:
+            for sql in pending:
+                conn.execute(text(sql))
+
+
+_ensure_new_columns()
+
+
+def _compute_phash(img: "Image.Image") -> str | None:
+    """Hash perceptual (8x8) de una foto: permite comparar imagenes por similitud
+    de forma/textura aunque cambien un poco el tamaño/compresion. Trabaja en
+    escala de grises, por eso NO distingue colores (una traba azul y un cable
+    negro con la misma silueta pueden dar un hash parecido) — se complementa
+    con _compute_colorsig. None si Pillow no esta instalado."""
+    if Image is None or imagehash is None:
+        return None
+    try:
+        return str(imagehash.phash(img.convert("RGB")))
+    except Exception:
+        return None
+
+
+def _compute_colorsig(img: "Image.Image") -> str | None:
+    """Firma de color: la imagen reducida a una miniatura de 8x8 (en RGB),
+    guardada como hex. Compara colores y su distribucion aproximada en la
+    imagen, para distinguir objetos con forma parecida pero color distinto
+    (ej: una traba azul de tensiometro vs. un cable negro)."""
+    if Image is None:
+        return None
+    try:
+        thumb = img.convert("RGB").resize((8, 8))
+        return thumb.tobytes().hex()
+    except Exception:
+        return None
+
+
+def _compute_hashes_from_path(path: Path) -> tuple[str | None, str | None]:
+    if Image is None:
+        return None, None
+    try:
+        with Image.open(path) as img:
+            img.load()
+            return _compute_phash(img), _compute_colorsig(img)
+    except Exception:
+        return None, None
+
+
+def _color_distance_pct(sig1: str | None, sig2: str | None) -> float | None:
+    """Devuelve un % de parecido de color (0-100) entre dos firmas hex de
+    8x8x3 bytes, o None si falta alguna."""
+    if not sig1 or not sig2:
+        return None
+    try:
+        b1, b2 = bytes.fromhex(sig1), bytes.fromhex(sig2)
+        if len(b1) != len(b2) or not b1:
+            return None
+        diff = sum(abs(a - b) for a, b in zip(b1, b2))
+        return max(0.0, 100.0 - (diff / (len(b1) * 255)) * 100.0)
+    except Exception:
+        return None
+
+
+def _backfill_foto_phash():
+    """Calcula el hash/firma de color de todas las fotos de insumos que
+    todavia no lo tienen (fotos viejas, cargadas antes de tener esta
+    funcion). Se corre una sola vez por foto: una vez calculado queda
+    guardado en la DB."""
+    if Image is None:
+        return
+    db = SessionLocal()
+    try:
+        pendientes = (
+            db.query(models.Insumo)
+            .filter(models.Insumo.foto_filename.isnot(None))
+            .filter(
+                or_(
+                    models.Insumo.foto_phash.is_(None),
+                    models.Insumo.foto_colorsig.is_(None),
+                )
+            )
+            .all()
+        )
+        if not pendientes:
+            return
+        changed = False
+        for it in pendientes:
+            for base in (UPLOADS_DIR, FOTOS_DIR):
+                candidate = base / it.foto_filename
+                if candidate.exists() and candidate.is_file():
+                    ph, cs = _compute_hashes_from_path(candidate)
+                    if ph:
+                        it.foto_phash = ph
+                        changed = True
+                    if cs:
+                        it.foto_colorsig = cs
+                        changed = True
+                    break
+        if changed:
+            db.commit()
+    finally:
+        db.close()
+
+
+def _seed_default_config():
+    db = SessionLocal()
+    try:
+        existing = {c.key for c in db.query(models.Config).all()}
+        defaults = {
+            "fx_rate": 1200.0,
+            "threshold_pct": 20,
+            "servicios": [
+                "UTI / Terapia Intensiva",
+                "Estudios del Sueno",
+                "Holter / Ergometria",
+                "Consultorio externo",
+                "Quirofano",
+                "Guardia",
+                "Otros",
+            ],
+        }
+        for k, v in defaults.items():
+            if k not in existing:
+                db.add(models.Config(key=k, value=json.dumps(v)))
+        db.commit()
+    finally:
+        db.close()
+
+
+_seed_default_config()
+_backfill_foto_phash()
+
+app = FastAPI(
+    title="Stock de Insumos API",
+    version="2.1.0",
+    description="Backend local: insumos + movimientos + pedidos + config + import/export + auth.",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+if FOTOS_DIR.exists():
+    app.mount("/fotos", StaticFiles(directory=str(FOTOS_DIR)), name="fotos")
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+
+# Frontend SPA mobile-first servido desde /static.
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+
+
+@app.get("/")
+def root():
+    """Si existe el frontend en /static, lo servimos como home; sino devolvemos info."""
+    index = STATIC_DIR / "index.html"
+    if index.exists():
+        return FileResponse(str(index))
+    return JSONResponse({
+        "name": "Stock de Insumos API",
+        "version": "2.1.0",
+        "docs": "/docs",
+    })
+
+
+# ============================================================================
+# AUTH
+# ============================================================================
+@app.post("/auth/login", response_model=schemas.TokenOut)
+def login(payload: schemas.LoginInput, db: Session = Depends(get_db)):
+    # Usuario case-insensitive: "Roberto", "ROBERTO" y "roberto" son el mismo login.
+    uname = (payload.username or "").strip()
+    user = db.query(models.Usuario).filter(func.lower(models.Usuario.username) == uname.lower()).first()
+    if not user or not user.activo or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos")
+    token = create_access_token(sub=user.username, extra={"rol": user.rol})
+    return schemas.TokenOut(access_token=token, user=user)
+
+
+# Cuenta compartida "usuario" (ver migrate.py / reset_admin.py) usada para el
+# acceso rapido sin contrasena: cualquiera puede entrar, pero debe decir su
+# nombre y apellido para que quede registrado quien hizo cada movimiento
+# (se guarda en el campo "Responsable" de cada movimiento, no reemplaza el login).
+GUEST_USERNAME = "usuario"
+
+
+@app.post("/auth/guest-login", response_model=schemas.TokenOut)
+def guest_login(payload: schemas.GuestLoginInput, db: Session = Depends(get_db)):
+    nombre = payload.nombre.strip()
+    apellido = payload.apellido.strip()
+    if not nombre or not apellido:
+        raise HTTPException(status_code=422, detail="Nombre y apellido son obligatorios")
+    user = db.query(models.Usuario).filter(func.lower(models.Usuario.username) == GUEST_USERNAME).first()
+    if not user or not user.activo:
+        raise HTTPException(status_code=404, detail="La cuenta de invitado no esta disponible. Avisa a un administrador.")
+    full_name = f"{nombre} {apellido}"
+    token = create_access_token(sub=user.username, extra={"rol": user.rol, "guest_nombre": full_name})
+    return schemas.TokenOut(access_token=token, user=user)
+
+
+@app.get("/auth/me", response_model=schemas.UsuarioOut)
+def auth_me(current: models.Usuario = Depends(get_current_user)):
+    return current
+
+
+@app.get("/auth/users", response_model=List[schemas.UsuarioOut])
+def list_users(
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    return db.query(models.Usuario).order_by(models.Usuario.id).all()
+
+
+@app.post("/auth/users", response_model=schemas.UsuarioOut, status_code=201)
+def create_user(
+    payload: schemas.UsuarioCreate,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    if db.query(models.Usuario).filter_by(username=payload.username).first():
+        raise HTTPException(status_code=409, detail="Ya existe un usuario con ese username")
+    user = models.Usuario(
+        username=payload.username,
+        password_hash=hash_password(payload.password),
+        nombre=payload.nombre,
+        rol=payload.rol,
+        activo=payload.activo,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@app.patch("/auth/users/{user_id}", response_model=schemas.UsuarioOut)
+def update_user(
+    user_id: int,
+    payload: schemas.UsuarioUpdate,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    user = db.get(models.Usuario, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    data = payload.model_dump(exclude_unset=True)
+    pw = data.pop("password", None)
+    if pw:
+        user.password_hash = hash_password(pw)
+    for field in ("nombre", "rol", "activo"):
+        if field in data:
+            setattr(user, field, data[field])
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+# ============================================================================
+# INSUMOS
+# ============================================================================
+ALLOWED_FOTO_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+# Lead time (dias) segun tipo de compra. Usado para calcular stock_minimo.
+LEAD_TIME_DIAS = {"corta": 20, "media": 45, "larga": 90}
+LEAD_TIME_DIAS_DEFAULT = "media"
+
+
+def _calcular_stock_minimo(insumo: "models.Insumo", db: Session) -> dict:
+    """Stock minimo sugerido en base al consumo real (salidas OUT) de los
+    ultimos 3 anios, agrupado por mes calendario (con 0 en los meses sin
+    consumo, para que el desvio estandar no quede inflado por huecos).
+
+    stock_minimo = (consumo_diario_promedio x lead_time_dias) + margen_seguridad
+    margen_seguridad = (desvio_std_mensual / 30) x 1.5
+    lead_time_dias: segun tipo_compra del insumo (corta=20 / media=45 / larga=90,
+    default "media" si no esta asignado).
+    """
+    import statistics
+    from math import ceil
+
+    hoy = datetime.now(timezone.utc)
+    desde = hoy - timedelta(days=365 * 3)
+    movs = (
+        db.query(models.Movimiento)
+        .filter(models.Movimiento.insumo_id == insumo.id)
+        .filter(models.Movimiento.tipo == "OUT")
+        .filter(models.Movimiento.fecha >= desde)
+        .all()
+    )
+    por_mes: dict[str, int] = {}
+    for m in movs:
+        clave = m.fecha.strftime("%Y-%m")
+        por_mes[clave] = por_mes.get(clave, 0) + (m.cantidad or 0)
+
+    # Grilla completa de meses en la ventana (para que los meses sin
+    # movimientos cuenten como 0 y no queden afuera del calculo).
+    meses = []
+    cursor = desde.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    fin = hoy.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    while cursor <= fin:
+        meses.append(cursor.strftime("%Y-%m"))
+        siguiente = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+        cursor = siguiente
+    valores = [por_mes.get(mes, 0) for mes in meses]
+
+    prom_mensual = statistics.mean(valores) if valores else 0.0
+    desvio_mensual = statistics.stdev(valores) if len(valores) > 1 else 0.0
+    tiene_consumo = sum(valores) > 0
+
+    tipo = insumo.tipo_compra if insumo.tipo_compra in LEAD_TIME_DIAS else LEAD_TIME_DIAS_DEFAULT
+    lead_dias = LEAD_TIME_DIAS[tipo]
+    consumo_diario = prom_mensual / 30
+    margen = (desvio_mensual / 30) * 1.5
+    stock_minimo = ceil((consumo_diario * lead_dias) + margen)
+
+    return {
+        "insumo_id": insumo.id,
+        "nombre": insumo.nombre,
+        "tipo_compra": tipo,
+        "lead_time_dias": lead_dias,
+        "prom_mensual": round(prom_mensual, 2),
+        "desvio_std_mensual": round(desvio_mensual, 2),
+        "margen_seguridad": round(margen, 2),
+        # None cuando no hubo consumo en la ventana: en ese caso NO se
+        # recomienda pisar el stock_minimo existente (no hay datos para
+        # calcular nada mejor que lo que ya esta cargado a mano).
+        "stock_minimo_calculado": max(stock_minimo, 1) if tiene_consumo else None,
+        "stock_minimo_anterior": insumo.stock_minimo,
+        "stock_actual": insumo.stock,
+    }
+
+
+@app.get("/insumos", response_model=List[schemas.Insumo])
+def list_insumos(
+    q: str | None = Query(None),
+    estado: str | None = None,
+    marca: str | None = None,
+    equipo_medico: str | None = None,
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.Insumo)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            models.Insumo.nombre.ilike(like),
+            models.Insumo.marca.ilike(like),
+            models.Insumo.referencia.ilike(like),
+            models.Insumo.equipo_medico.ilike(like),
+            models.Insumo.ubicacion.ilike(like),
+        ))
+    if estado:
+        query = query.filter(models.Insumo.estado == estado)
+    if marca:
+        query = query.filter(models.Insumo.marca == marca)
+    if equipo_medico:
+        query = query.filter(models.Insumo.equipo_medico == equipo_medico)
+    return query.order_by(models.Insumo.id).all()
+
+
+@app.get("/insumos/bajo-stock", response_model=List[schemas.Insumo])
+def list_bajo_stock(
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Insumos cuyo stock <= stock_minimo (alertas)."""
+    q = (
+        db.query(models.Insumo)
+        .filter(models.Insumo.stock <= models.Insumo.stock_minimo)
+        .order_by(models.Insumo.stock.asc(), models.Insumo.nombre.asc())
+    )
+    return q.all()
+
+
+@app.get("/insumos/{insumo_id}/stock-minimo-detalle")
+def stock_minimo_detalle(
+    insumo_id: int,
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Muestra el desglose del calculo (promedio, desvio, margen, lead time)
+    sin guardar nada. Util para revisar antes de aplicar."""
+    item = db.get(models.Insumo, insumo_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    return _calcular_stock_minimo(item, db)
+
+
+@app.post("/insumos/recalcular-stock-minimo")
+def recalcular_stock_minimo(
+    aplicar: bool = Query(True, description="Si es false, solo simula y no guarda cambios"),
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Recalcula stock_minimo de TODOS los insumos segun su consumo real de
+    los ultimos 3 anios y el lead time de su tipo_compra."""
+    items_db = db.query(models.Insumo).order_by(models.Insumo.nombre).all()
+    resultados = [_calcular_stock_minimo(it, db) for it in items_db]
+    if aplicar:
+        for it, r in zip(items_db, resultados):
+            if r["stock_minimo_calculado"] is not None:
+                it.stock_minimo = r["stock_minimo_calculado"]
+        db.commit()
+    return {"aplicado": aplicar, "cantidad_insumos": len(resultados), "items": resultados}
+
+
+@app.patch("/insumos/{insumo_id}/tipo-compra", response_model=schemas.Insumo)
+def set_tipo_compra(
+    insumo_id: int,
+    tipo_compra: str = Body(..., embed=True),
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Asigna el tipo de compra (corta/media/larga) que define el lead time
+    a usar para ese insumo en el calculo de stock_minimo."""
+    if tipo_compra not in LEAD_TIME_DIAS:
+        raise HTTPException(status_code=400, detail=f"tipo_compra debe ser uno de: {list(LEAD_TIME_DIAS)}")
+    item = db.get(models.Insumo, insumo_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    item.tipo_compra = tipo_compra
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.get("/insumos/{insumo_id}", response_model=schemas.Insumo)
+def get_insumo(
+    insumo_id: int,
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    item = db.get(models.Insumo, insumo_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    return item
+
+
+@app.post("/insumos", response_model=schemas.Insumo, status_code=201)
+def create_insumo(
+    payload: schemas.InsumoCreate,
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if db.query(models.Insumo).filter_by(nombre=payload.nombre).first():
+        raise HTTPException(status_code=409, detail="Ya existe un insumo con ese nombre")
+    item = models.Insumo(**payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.patch("/insumos/{insumo_id}", response_model=schemas.Insumo)
+def update_insumo(
+    insumo_id: int,
+    payload: schemas.InsumoUpdate,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    item = db.get(models.Insumo, insumo_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    data = payload.model_dump(exclude_unset=True)
+    stock_before = item.stock
+    for k, v in data.items():
+        setattr(item, k, v)
+    db.flush()
+    # Si cambian stock manualmente, dejamos rastro como AJUSTE.
+    if "stock" in data and data["stock"] is not None and data["stock"] != stock_before:
+        delta = (data["stock"] or 0) - (stock_before or 0)
+        db.add(models.Movimiento(
+            insumo_id=item.id,
+            insumo_nombre=item.nombre,
+            tipo="AJUSTE",
+            cantidad=abs(delta),
+            notas=f"Ajuste manual ({stock_before} -> {data['stock']})",
+            stock_before=stock_before,
+            usuario=current.username,
+            precio_unit_valor=item.precio_unit_valor,
+            moneda=item.moneda,
+            fecha=datetime.now(timezone.utc),
+        ))
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.delete("/insumos/{insumo_id}", status_code=204)
+def delete_insumo(
+    insumo_id: int,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    item = db.get(models.Insumo, insumo_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    db.query(models.Movimiento).filter_by(insumo_id=insumo_id).delete()
+    db.delete(item)
+    db.commit()
+    return None
+
+
+@app.get("/insumos/{insumo_id}/foto")
+def get_insumo_foto(insumo_id: int, db: Session = Depends(get_db)):
+    # Foto sin auth: simplifica el <img src=...> en el frontend.
+    item = db.get(models.Insumo, insumo_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    if not item.foto_filename:
+        raise HTTPException(status_code=404, detail="Insumo sin foto asociada")
+    for base in (UPLOADS_DIR, FOTOS_DIR):
+        candidate = base / item.foto_filename
+        if candidate.exists() and candidate.is_file():
+            return FileResponse(str(candidate))
+    raise HTTPException(status_code=404, detail=f"Foto '{item.foto_filename}' no encontrada en disco")
+
+
+@app.post("/insumos/{insumo_id}/foto", response_model=schemas.Insumo)
+async def upload_insumo_foto(
+    insumo_id: int,
+    file: UploadFile = File(...),
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    item = db.get(models.Insumo, insumo_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_FOTO_EXTS:
+        raise HTTPException(status_code=400, detail=f"Formato no soportado: {ext}")
+    safe_name = f"insumo_{insumo_id}{ext}"
+    dest = UPLOADS_DIR / safe_name
+    dest.write_bytes(await file.read())
+    for other_ext in ALLOWED_FOTO_EXTS - {ext}:
+        stale = UPLOADS_DIR / f"insumo_{insumo_id}{other_ext}"
+        if stale.exists():
+            stale.unlink()
+    item.foto_filename = safe_name
+    with Image.open(dest) as img:
+        img.load()
+        item.foto_phash = _compute_phash(img)
+        item.foto_colorsig = _compute_colorsig(img)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.post("/insumos/buscar-por-foto")
+async def buscar_insumo_por_foto(
+    file: UploadFile = File(...),
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Recibe una foto (sacada o subida desde el celu/PC) y la compara contra
+    la foto de cada insumo cargado, combinando un hash perceptual de forma
+    (pHash) con una firma de color, para que objetos con la misma silueta
+    pero distinto color (ej: una traba azul vs. un cable negro) no se
+    confundan. Devuelve los insumos más parecidos ordenados de mayor a menor
+    similitud, para que el usuario encuentre rápido qué insumo es y dónde
+    está guardado."""
+    if Image is None or imagehash is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Falta instalar Pillow e ImageHash en el servidor. Reiniciá la app para que se instalen solos.",
+        )
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="No llegó ninguna imagen")
+    try:
+        with Image.open(io.BytesIO(raw)) as img:
+            img.load()
+            query_hash = imagehash.phash(img.convert("RGB"))
+            query_colorsig = _compute_colorsig(img)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer la imagen. Probá con otra foto.")
+
+    candidatos = (
+        db.query(models.Insumo)
+        .filter(models.Insumo.foto_phash.isnot(None))
+        .all()
+    )
+    scored = []
+    for it in candidatos:
+        try:
+            h = imagehash.hex_to_hash(it.foto_phash)
+        except Exception:
+            continue
+        dist = int(query_hash - h)  # distancia de Hamming: 0 = idéntica, 64 = opuesta
+        forma_pct = max(0.0, (1 - dist / 64) * 100.0)
+        color_pct = _color_distance_pct(query_colorsig, it.foto_colorsig)
+        # Combinamos forma + color (si hay firma de color de ambos lados);
+        # el color pesa fuerte porque distingue mejor objetos parecidos en
+        # forma pero de insumos totalmente distintos.
+        combined_pct = (0.55 * forma_pct + 0.45 * color_pct) if color_pct is not None else forma_pct
+        scored.append((combined_pct, dist, it))
+    scored.sort(key=lambda t: -t[0])
+
+    resultados = []
+    for combined_pct, dist, it in scored[:12]:
+        resultados.append({
+            "insumo": schemas.Insumo.model_validate(it).model_dump(mode="json"),
+            "similaridad_pct": round(combined_pct),
+            "distancia": dist,
+        })
+    return {"resultados": resultados, "total_comparadas": len(candidatos)}
+
+
+@app.post("/insumos/{insumo_id}/reset-stock", response_model=schemas.Insumo)
+def reset_stock_insumo(
+    insumo_id: int,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Pone el contador de stock en 0 SIN registrar movimiento.
+
+    Pensado para corregir errores de carga: a diferencia del PATCH de stock
+    (que deja un AJUSTE en el historial), esto no registra nada porque no es
+    un ajuste de inventario real.
+    """
+    item = db.get(models.Insumo, insumo_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    item.stock = 0
+    item.estado = "SIN STOCK"
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+# ============================================================================
+# ARMARIOS (ubicaciones físicas: cada uno con su letra, foto y estantes)
+# ============================================================================
+@app.get("/armarios", response_model=List[schemas.Armario])
+def list_armarios(
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return db.query(models.Armario).order_by(models.Armario.letra).all()
+
+
+@app.post("/armarios", response_model=schemas.Armario, status_code=201)
+def create_armario(
+    payload: schemas.ArmarioCreate,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    letra = payload.letra.strip().upper()
+    if not letra:
+        raise HTTPException(status_code=400, detail="La letra no puede estar vacía")
+    existing = db.query(models.Armario).filter_by(letra=letra).first()
+    if existing:
+        # Idempotente: si ya existe (ej. auto-provisionado al detectar una
+        # ubicación vieja), lo devolvemos tal cual en vez de romper con 409.
+        return existing
+    item = models.Armario(letra=letra, nombre=(payload.nombre or None))
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.patch("/armarios/{armario_id}", response_model=schemas.Armario)
+def update_armario(
+    armario_id: int,
+    payload: schemas.ArmarioUpdate,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    item = db.get(models.Armario, armario_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Armario no encontrado")
+    data = payload.model_dump(exclude_unset=True)
+    if "letra" in data and data["letra"]:
+        nueva = data["letra"].strip().upper()
+        dup = db.query(models.Armario).filter(
+            models.Armario.letra == nueva, models.Armario.id != armario_id
+        ).first()
+        if dup:
+            raise HTTPException(status_code=409, detail=f"Ya existe un armario con la letra {nueva}")
+        data["letra"] = nueva
+    for field in ("letra", "nombre"):
+        if field in data:
+            setattr(item, field, data[field])
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.delete("/armarios/{armario_id}", status_code=204)
+def delete_armario(
+    armario_id: int,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    item = db.get(models.Armario, armario_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Armario no encontrado")
+    db.delete(item)
+    db.commit()
+    return None
+
+
+@app.get("/armarios/{armario_id}/foto")
+def get_armario_foto(armario_id: int, db: Session = Depends(get_db)):
+    # Sin auth: simplifica el <img src=...> en el frontend.
+    item = db.get(models.Armario, armario_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Armario no encontrado")
+    if not item.foto_filename:
+        raise HTTPException(status_code=404, detail="Armario sin foto asociada")
+    candidate = UPLOADS_DIR / item.foto_filename
+    if candidate.exists() and candidate.is_file():
+        return FileResponse(str(candidate))
+    raise HTTPException(status_code=404, detail=f"Foto '{item.foto_filename}' no encontrada en disco")
+
+
+# --- Endpoints publicos para los QR fisicos (sin login) -------------------
+_UBICACION_RE = re.compile(r"^\s*(\d+)\s*([A-Za-z]+)\s*$")
+
+
+@app.get("/publico/armario/{letra}")
+def publico_armario(letra: str, db: Session = Depends(get_db)):
+    """Contenido de un armario por estante, para el QR pegado en la puerta del
+    gabinete. Sin login (se escanea con el celular). Muestra los 6 estantes
+    aunque esten vacios."""
+    letra = letra.strip().upper()
+    armario = db.query(models.Armario).filter_by(letra=letra).first()
+    insumos = db.query(models.Insumo).filter(models.Insumo.ubicacion.isnot(None)).all()
+
+    estantes: dict[int, list] = {n: [] for n in range(1, 7)}
+    otros = []
+    for it in insumos:
+        m = _UBICACION_RE.match(it.ubicacion or "")
+        if not m:
+            continue
+        numero, l = int(m.group(1)), m.group(2).upper()
+        if l != letra:
+            continue
+        item_data = {
+            "id": it.id, "nombre": it.nombre, "stock": it.stock,
+            "stock_minimo": it.stock_minimo, "estado": it.estado,
+        }
+        if 1 <= numero <= 6:
+            estantes[numero].append(item_data)
+        else:
+            otros.append({**item_data, "estante": numero})
+
+    return {
+        "letra": letra,
+        "nombre": armario.nombre if armario else None,
+        "existe": armario is not None,
+        "estantes": [{"numero": n, "insumos": estantes[n]} for n in range(1, 7)],
+        "otros_estantes": otros,  # por si hay ubicaciones fuera del 1-6 (dato viejo/atipico)
+        "actualizado": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/publico/alertas")
+def publico_alertas(db: Session = Depends(get_db)):
+    """Insumos en stock bajo o cero, para el QR fijo de alertas. Sin login,
+    pensado para consultarse en el momento (no es una foto vieja)."""
+    items = (
+        db.query(models.Insumo)
+        .filter(models.Insumo.stock <= models.Insumo.stock_minimo)
+        .order_by(models.Insumo.stock.asc(), models.Insumo.nombre.asc())
+        .all()
+    )
+    resultado = []
+    for it in items:
+        minimo = it.stock_minimo or 1
+        if (it.stock or 0) <= 0 or (it.stock or 0) < minimo * 0.5:
+            severidad = "CRITICO"
+        else:
+            severidad = "BAJO"
+        resultado.append({
+            "id": it.id, "nombre": it.nombre, "stock": it.stock,
+            "stock_minimo": it.stock_minimo, "ubicacion": it.ubicacion,
+            "equipo_medico": it.equipo_medico, "severidad": severidad,
+        })
+    return {
+        "actualizado": datetime.now(timezone.utc).isoformat(),
+        "cantidad": len(resultado),
+        "items": resultado,
+    }
+
+
+@app.post("/armarios/{armario_id}/foto", response_model=schemas.Armario)
+async def upload_armario_foto(
+    armario_id: int,
+    file: UploadFile = File(...),
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    item = db.get(models.Armario, armario_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Armario no encontrado")
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_FOTO_EXTS:
+        raise HTTPException(status_code=400, detail=f"Formato no soportado: {ext}")
+    safe_name = f"armario_{armario_id}{ext}"
+    dest = UPLOADS_DIR / safe_name
+    dest.write_bytes(await file.read())
+    for other_ext in ALLOWED_FOTO_EXTS - {ext}:
+        stale = UPLOADS_DIR / f"armario_{armario_id}{other_ext}"
+        if stale.exists():
+            stale.unlink()
+    item.foto_filename = safe_name
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.delete("/armarios/{armario_id}/foto", response_model=schemas.Armario)
+def delete_armario_foto(
+    armario_id: int,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    item = db.get(models.Armario, armario_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Armario no encontrado")
+    if item.foto_filename:
+        stale = UPLOADS_DIR / item.foto_filename
+        if stale.exists():
+            stale.unlink()
+        item.foto_filename = None
+        db.commit()
+        db.refresh(item)
+    return item
+
+
+# ============================================================================
+# MOVIMIENTOS
+# ============================================================================
+def _apply_movimiento(
+    db: Session,
+    *,
+    insumo: models.Insumo,
+    tipo: str,
+    cantidad: int,
+    servicio: str | None,
+    responsable: str | None,
+    paciente: str | None,
+    notas: str | None,
+    fecha: datetime | None,
+    usuario: str | None,
+    comprobante: str | None = None,
+    comprobante_fecha: datetime | None = None,
+    proveedor: str | None = None,
+) -> models.Movimiento:
+    """Aplica un movimiento al stock y registra la entrada de auditoria.
+
+    Reglas:
+      IN     -> stock += cantidad
+      OUT    -> stock -= cantidad (no baja de 0)
+      AJUSTE -> setea stock al valor de `cantidad` (cantidad guardada en mov es
+                 el delta absoluto contra el stock previo)
+    """
+    stock_before = insumo.stock or 0
+
+    if tipo == "IN":
+        delta = cantidad
+        new_stock = (insumo.stock or 0) + delta
+        cant_to_log = cantidad
+    elif tipo == "OUT":
+        delta = -cantidad
+        new_stock = max(0, (insumo.stock or 0) + delta)
+        cant_to_log = cantidad
+    elif tipo == "AJUSTE":
+        new_stock = max(0, cantidad)
+        delta = new_stock - (insumo.stock or 0)
+        cant_to_log = abs(delta)
+    else:
+        raise HTTPException(status_code=400, detail=f"Tipo invalido: {tipo}")
+
+    insumo.stock = new_stock
+    insumo.estado = "OK" if new_stock > 0 else "SIN STOCK"
+
+    mov = models.Movimiento(
+        insumo_id=insumo.id,
+        insumo_nombre=insumo.nombre,
+        tipo=tipo,
+        cantidad=cant_to_log,
+        servicio=servicio,
+        responsable=responsable,
+        paciente=paciente,
+        notas=notas,
+        comprobante=comprobante,
+        comprobante_fecha=comprobante_fecha,
+        proveedor=proveedor,
+        stock_before=stock_before,
+        usuario=usuario,
+        precio_unit_valor=insumo.precio_unit_valor,
+        moneda=insumo.moneda,
+        fecha=fecha or datetime.now(timezone.utc),
+    )
+    db.add(mov)
+    return mov
+
+
+@app.get("/movimientos/servicios-distintos")
+def servicios_distintos(
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Lista todos los valores distintos que hay cargados en el campo
+    'servicio' de los movimientos, con cuantos movimientos tiene cada uno.
+    Sirve para detectar duplicados por mayusculas/singular-plural
+    (ej: "CONSULTORIOS EXTERNOS" vs "Consultorio externo") antes de unificarlos
+    con /movimientos/normalizar-servicios."""
+    rows = (
+        db.query(models.Movimiento.servicio, func.count(models.Movimiento.id))
+        .filter(models.Movimiento.servicio.isnot(None))
+        .filter(models.Movimiento.servicio != "")
+        .group_by(models.Movimiento.servicio)
+        .order_by(func.count(models.Movimiento.id).desc())
+        .all()
+    )
+    return [{"servicio": s, "cantidad_movimientos": c} for s, c in rows]
+
+
+@app.post("/movimientos/normalizar-servicios")
+def normalizar_servicios(
+    mapeo: dict[str, str] = Body(..., embed=True, description="Ej: {'CONSULTORIOS EXTERNOS': 'Consultorio externo', 'QUIROFANOS': 'Quirofano'}"),
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Unifica variantes del campo 'servicio' en movimientos existentes.
+    `mapeo` es {valor_viejo: valor_nuevo}; todos los movimientos con
+    servicio == valor_viejo pasan a tener servicio == valor_nuevo.
+    Tambien limpia la lista de 'servicios' guardada en Config, sacando los
+    valores viejos que ya no se usan."""
+    total_actualizados = 0
+    for viejo, nuevo in mapeo.items():
+        if not viejo or not nuevo or viejo == nuevo:
+            continue
+        n = (
+            db.query(models.Movimiento)
+            .filter(models.Movimiento.servicio == viejo)
+            .update({"servicio": nuevo}, synchronize_session=False)
+        )
+        total_actualizados += n
+
+    servicios_actuales = _get_config_value("servicios", [], db)
+    viejos = set(mapeo.keys())
+    nuevos = {v for v in mapeo.values()}
+    servicios_limpios = [s for s in servicios_actuales if s not in viejos]
+    for n in nuevos:
+        if n not in servicios_limpios:
+            servicios_limpios.append(n)
+    row = db.get(models.Config, "servicios")
+    if row:
+        row.value = json.dumps(servicios_limpios)
+    else:
+        db.add(models.Config(key="servicios", value=json.dumps(servicios_limpios)))
+
+    db.commit()
+    return {"movimientos_actualizados": total_actualizados, "servicios": servicios_limpios}
+
+
+@app.get("/movimientos", response_model=List[schemas.Movimiento])
+def list_movimientos(
+    q: str | None = None,
+    tipo: str | None = Query(None, pattern="^(IN|OUT|AJUSTE)?$"),
+    servicio: str | None = None,
+    insumo_id: int | None = None,
+    desde: datetime | None = None,
+    hasta: datetime | None = None,
+    limit: int = 500,
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.Movimiento)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            models.Movimiento.insumo_nombre.ilike(like),
+            models.Movimiento.responsable.ilike(like),
+            models.Movimiento.paciente.ilike(like),
+            models.Movimiento.notas.ilike(like),
+            models.Movimiento.usuario.ilike(like),
+            models.Movimiento.comprobante.ilike(like),
+            models.Movimiento.proveedor.ilike(like),
+        ))
+    if tipo:
+        query = query.filter(models.Movimiento.tipo == tipo)
+    if servicio:
+        query = query.filter(models.Movimiento.servicio == servicio)
+    if insumo_id is not None:
+        query = query.filter(models.Movimiento.insumo_id == insumo_id)
+    if desde:
+        query = query.filter(models.Movimiento.fecha >= desde)
+    if hasta:
+        query = query.filter(models.Movimiento.fecha <= hasta)
+    return query.order_by(models.Movimiento.fecha.desc()).limit(limit).all()
+
+
+@app.post("/movimientos", response_model=schemas.Movimiento, status_code=201)
+def create_movimiento(
+    payload: schemas.MovimientoCreate,
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if payload.tipo == "AJUSTE" and current.rol != "admin":
+        raise HTTPException(status_code=403, detail="Solo un administrador puede hacer ajustes de stock")
+    insumo = db.get(models.Insumo, payload.insumo_id)
+    if not insumo:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    mov = _apply_movimiento(
+        db,
+        insumo=insumo,
+        tipo=payload.tipo,
+        cantidad=payload.cantidad,
+        servicio=payload.servicio,
+        responsable=payload.responsable,
+        paciente=payload.paciente,
+        notas=payload.notas,
+        fecha=payload.fecha,
+        usuario=current.username,
+        comprobante=payload.comprobante,
+        comprobante_fecha=payload.comprobante_fecha,
+        proveedor=payload.proveedor,
+    )
+    db.commit()
+    db.refresh(mov)
+    return mov
+
+
+@app.get("/insumos/{insumo_id}/movimientos", response_model=List[schemas.Movimiento])
+def list_movimientos_de_insumo(
+    insumo_id: int,
+    desde: datetime | None = None,
+    hasta: datetime | None = None,
+    limit: int = 500,
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not db.get(models.Insumo, insumo_id):
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    q = db.query(models.Movimiento).filter_by(insumo_id=insumo_id)
+    if desde:
+        q = q.filter(models.Movimiento.fecha >= desde)
+    if hasta:
+        q = q.filter(models.Movimiento.fecha <= hasta)
+    return q.order_by(models.Movimiento.fecha.desc()).limit(limit).all()
+
+
+@app.post("/insumos/{insumo_id}/movimientos", response_model=schemas.Movimiento, status_code=201)
+def crear_movimiento_de_insumo(
+    insumo_id: int,
+    payload: schemas.MovimientoNested,
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if payload.tipo == "AJUSTE" and current.rol != "admin":
+        raise HTTPException(status_code=403, detail="Solo un administrador puede hacer ajustes de stock")
+    insumo = db.get(models.Insumo, insumo_id)
+    if not insumo:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    mov = _apply_movimiento(
+        db,
+        insumo=insumo,
+        tipo=payload.tipo,
+        cantidad=payload.cantidad,
+        servicio=payload.servicio,
+        responsable=payload.responsable,
+        paciente=payload.paciente,
+        notas=payload.notas,
+        fecha=payload.fecha,
+        usuario=current.username,
+        comprobante=payload.comprobante,
+        comprobante_fecha=payload.comprobante_fecha,
+        proveedor=payload.proveedor,
+    )
+    db.commit()
+    db.refresh(mov)
+    return mov
+
+
+@app.patch("/movimientos/{mov_id}", response_model=schemas.Movimiento)
+def update_movimiento(
+    mov_id: int,
+    payload: schemas.MovimientoUpdate,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Corrige un movimiento ya cargado (error de tipeo, servicio equivocado, etc.).
+
+    - Los campos que no afectan stock (servicio, responsable, ubicacion, notas,
+      comprobante/proveedor/fecha del comprobante, fecha del movimiento) se pueden
+      editar siempre.
+    - IN/OUT: se puede cambiar tipo y/o cantidad libremente entre sí; se revierte
+      el efecto viejo sobre el stock y se aplica el nuevo.
+    - AJUSTE: no se puede convertir a IN/OUT ni viceversa, pero sí se puede
+      corregir la cantidad (el admin la carga como "stock final" nuevo, igual
+      que al crear el ajuste) siempre que el movimiento tenga guardado el stock
+      previo (`stock_before`, disponible desde que existe esta función). Para
+      ajustes viejos sin ese dato: eliminar y cargar de nuevo, o "Reiniciar
+      contador".
+    """
+    mov = db.get(models.Movimiento, mov_id)
+    if not mov:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+
+    data = payload.model_dump(exclude_unset=True)
+
+    new_tipo = data.get("tipo", mov.tipo)
+    new_cantidad = data.get("cantidad", mov.cantidad)
+    tipo_o_cantidad_cambio = (new_tipo != mov.tipo) or (new_cantidad != mov.cantidad)
+
+    if tipo_o_cantidad_cambio:
+        convierte_desde_o_hacia_ajuste = (mov.tipo == "AJUSTE") != (new_tipo == "AJUSTE")
+        if convierte_desde_o_hacia_ajuste:
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede convertir un Ajuste en Entrada/Salida ni viceversa. "
+                       "Eliminá el movimiento y cargá uno nuevo.",
+            )
+        insumo = db.get(models.Insumo, mov.insumo_id)
+        if new_tipo == "AJUSTE":
+            if mov.stock_before is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Este ajuste es anterior a la función de edición y no tiene "
+                           "guardado el stock previo, así que no se puede corregir de forma "
+                           "segura. Eliminalo y cargá uno nuevo, o usá 'Reiniciar contador'.",
+                )
+            nuevo_stock_final = max(0, new_cantidad)
+            if insumo:
+                insumo.stock = nuevo_stock_final
+                insumo.estado = "OK" if insumo.stock > 0 else "SIN STOCK"
+            mov.cantidad = abs(nuevo_stock_final - mov.stock_before)
+        else:
+            if insumo:
+                # revertir efecto viejo
+                if mov.tipo == "IN":
+                    insumo.stock = (insumo.stock or 0) - mov.cantidad
+                elif mov.tipo == "OUT":
+                    insumo.stock = (insumo.stock or 0) + mov.cantidad
+                # aplicar efecto nuevo
+                if new_tipo == "IN":
+                    insumo.stock = (insumo.stock or 0) + new_cantidad
+                elif new_tipo == "OUT":
+                    insumo.stock = (insumo.stock or 0) - new_cantidad
+                insumo.stock = max(0, insumo.stock or 0)
+                insumo.estado = "OK" if insumo.stock > 0 else "SIN STOCK"
+            mov.cantidad = new_cantidad
+        mov.tipo = new_tipo
+
+    for field in ("servicio", "responsable", "paciente", "notas", "comprobante",
+                  "comprobante_fecha", "proveedor", "fecha"):
+        if field in data:
+            setattr(mov, field, data[field])
+
+    db.commit()
+    db.refresh(mov)
+    return mov
+
+
+@app.delete("/movimientos/{mov_id}", status_code=204)
+def delete_movimiento(
+    mov_id: int,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    mov = db.get(models.Movimiento, mov_id)
+    if not mov:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    insumo = db.get(models.Insumo, mov.insumo_id)
+    if insumo:
+        if mov.tipo == "IN":
+            insumo.stock = max(0, (insumo.stock or 0) - mov.cantidad)
+        elif mov.tipo == "OUT":
+            insumo.stock = (insumo.stock or 0) + mov.cantidad
+        elif mov.tipo == "AJUSTE" and mov.stock_before is not None:
+            # Revierte el ajuste al stock que había justo antes de aplicarlo.
+            insumo.stock = max(0, mov.stock_before)
+        insumo.estado = "OK" if insumo.stock > 0 else "SIN STOCK"
+    db.delete(mov)
+    db.commit()
+    return None
+
+
+# ============================================================================
+# PEDIDOS
+# ============================================================================
+def _serialize_pedido(p: models.Pedido) -> dict:
+    items = json.loads(p.items_json) if p.items_json else []
+    return {
+        "id": p.id,
+        "fecha": p.fecha,
+        "items": items,
+        "total_usd": p.total_usd,
+        "total_ars": p.total_ars,
+        "notas": p.notas,
+        "created_at": p.created_at,
+    }
+
+
+@app.get("/pedidos", response_model=List[schemas.Pedido])
+def list_pedidos(
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = db.query(models.Pedido).order_by(models.Pedido.fecha.desc()).all()
+    return [_serialize_pedido(p) for p in rows]
+
+
+@app.post("/pedidos", response_model=schemas.Pedido, status_code=201)
+def create_pedido(
+    payload: schemas.PedidoCreate,
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="El pedido no tiene items")
+    items_data = [it.model_dump() for it in payload.items]
+    total_usd = sum((i.get("subtotal_usd") or 0) for i in items_data)
+    total_ars = sum((i.get("subtotal_ars") or 0) for i in items_data)
+    pedido = models.Pedido(
+        fecha=payload.fecha or datetime.now(timezone.utc),
+        items_json=json.dumps(items_data, default=str),
+        total_usd=total_usd,
+        total_ars=total_ars,
+        notas=payload.notas,
+    )
+    db.add(pedido)
+    db.commit()
+    db.refresh(pedido)
+    return _serialize_pedido(pedido)
+
+
+@app.delete("/pedidos/{pedido_id}", status_code=204)
+def delete_pedido(
+    pedido_id: int,
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    p = db.get(models.Pedido, pedido_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    db.delete(p)
+    db.commit()
+    return None
+
+
+@app.get("/pedidos/sugerencia")
+def sugerencia_pedido(
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    threshold_pct = _get_config_value("threshold_pct", 20, db)
+    fx = _get_config_value("fx_rate", 1200.0, db)
+    insumos = db.query(models.Insumo).order_by(models.Insumo.id).all()
+    sugerencias = []
+    for it in insumos:
+        prom = it.prom_anual or 0
+        sol = it.solicitud_compra or 0
+        cant = 0
+        if prom > 0 and (it.stock or 0) < prom * (threshold_pct / 100.0):
+            cant = max(prom - (it.stock or 0), 0)
+        if sol > 0:
+            cant = max(cant, sol)
+        if cant <= 0:
+            continue
+        precio = it.precio_unit_valor or 0
+        sub_usd = (precio * cant) if it.moneda == "USD" else (precio * cant / fx if it.moneda == "ARS" else 0)
+        sub_ars = (precio * cant) if it.moneda == "ARS" else (precio * cant * fx if it.moneda == "USD" else 0)
+        sugerencias.append({
+            "insumo_id": it.id,
+            "nombre": it.nombre,
+            "marca": it.marca,
+            "stock_actual": it.stock,
+            "prom_anual": it.prom_anual,
+            "cantidad": cant,
+            "precio_unit": precio,
+            "moneda": it.moneda,
+            "subtotal_usd": round(sub_usd, 2),
+            "subtotal_ars": round(sub_ars, 2),
+        })
+    return sugerencias
+
+
+@app.get("/compras/resumen")
+def compras_resumen(
+    dias: int = Query(90, ge=7, le=730),
+    meses_cobertura: float = Query(2.0, ge=0.5, le=24),
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Compras realizadas (entradas IN) + sugerencia de compra por CONSUMO REAL.
+
+    Para cada insumo, sobre los ultimos `dias`:
+      consumo        = suma de salidas OUT
+      comprado       = suma de entradas IN
+      consumo_mensual= consumo / (dias/30)
+      sugerido       = max(consumo_mensual * meses_cobertura - stock_actual, 0)
+                       (solo si hubo consumo en el periodo)
+    """
+    from math import ceil
+
+    fx = _get_config_value("fx_rate", 1200.0, db)
+    desde = datetime.now(timezone.utc) - timedelta(days=dias)
+    movs = (
+        db.query(models.Movimiento)
+        .filter(models.Movimiento.fecha >= desde)
+        .all()
+    )
+    out_por: dict[int, int] = {}
+    in_por: dict[int, int] = {}
+    for m in movs:
+        if m.tipo == "OUT":
+            out_por[m.insumo_id] = out_por.get(m.insumo_id, 0) + (m.cantidad or 0)
+        elif m.tipo == "IN":
+            in_por[m.insumo_id] = in_por.get(m.insumo_id, 0) + (m.cantidad or 0)
+
+    meses_periodo = max(dias / 30.0, 0.1)
+    items = []
+    for it in db.query(models.Insumo).order_by(models.Insumo.nombre).all():
+        consumo = out_por.get(it.id, 0)
+        comprado = in_por.get(it.id, 0)
+        consumo_mensual = consumo / meses_periodo
+        sugerido = 0
+        if consumo > 0:
+            sugerido = ceil(max(consumo_mensual * meses_cobertura - (it.stock or 0), 0))
+        if consumo == 0 and comprado == 0:
+            continue  # sin actividad en el periodo: no aporta al reporte
+        precio = it.precio_unit_valor or 0
+        sub_usd = (precio * sugerido) if it.moneda == "USD" else (precio * sugerido / fx if it.moneda == "ARS" else 0)
+        sub_ars = (precio * sugerido) if it.moneda == "ARS" else (precio * sugerido * fx if it.moneda == "USD" else 0)
+        items.append({
+            "insumo_id": it.id,
+            "nombre": it.nombre,
+            "marca": it.marca,
+            "stock_actual": it.stock,
+            "prom_anual": it.prom_anual,
+            "consumo_periodo": consumo,
+            "consumo_mensual": round(consumo_mensual, 1),
+            "comprado_periodo": comprado,
+            "cantidad": sugerido,
+            "precio_unit": precio,
+            "moneda": it.moneda,
+            "subtotal_usd": round(sub_usd, 2),
+            "subtotal_ars": round(sub_ars, 2),
+        })
+    # Primero lo que hay que comprar, luego el resto por consumo
+    items.sort(key=lambda x: (-x["cantidad"], -x["consumo_periodo"]))
+    return {"dias": dias, "meses_cobertura": meses_cobertura, "items": items}
+
+
+# ============================================================================
+# CONFIG
+# ============================================================================
+def _get_config_value(key: str, default, db: Session):
+    row = db.get(models.Config, key)
+    if not row:
+        return default
+    try:
+        return json.loads(row.value)
+    except Exception:
+        return default
+
+
+def _config_doc(db: Session) -> schemas.ConfigDoc:
+    return schemas.ConfigDoc(
+        fx_rate=float(_get_config_value("fx_rate", 1200.0, db)),
+        threshold_pct=int(_get_config_value("threshold_pct", 20, db)),
+        servicios=list(_get_config_value("servicios", [], db)),
+    )
+
+
+@app.get("/config", response_model=schemas.ConfigDoc)
+def get_config(
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _config_doc(db)
+
+
+@app.put("/config", response_model=schemas.ConfigDoc)
+def put_config(
+    payload: schemas.ConfigDoc,
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    for key, val in [
+        ("fx_rate", payload.fx_rate),
+        ("threshold_pct", payload.threshold_pct),
+        ("servicios", payload.servicios),
+    ]:
+        row = db.get(models.Config, key)
+        if row:
+            row.value = json.dumps(val)
+        else:
+            db.add(models.Config(key=key, value=json.dumps(val)))
+    db.commit()
+    return _config_doc(db)
+
+
+# ============================================================================
+# IMPORT / EXPORT
+# ============================================================================
+@app.get("/plantilla")
+def descargar_plantilla():
+    if not PLANTILLA_PATH.exists():
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada en el proyecto")
+    return FileResponse(
+        str(PLANTILLA_PATH),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="Plantilla_Importar_Insumos.xlsx",
+    )
+
+
+def _norm(s: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", str(s or ""))
+        if not unicodedata.combining(c)
+    ).lower().strip()
+
+
+_COL_ALIASES = {
+    "nombre": ["nombre", "item", "insumo", "producto", "descripcion"],
+    "ref": ["referencia", "codigo", "ref", "cod", "sku", "part", "part number", "partnumber", "pn"],
+    "ubicacion": ["ubicacion", "lugar", "armario", "estante"],
+    "equipo": ["equipo", "equipo medico", "maquina"],
+    "marca": ["marca", "fabricante"],
+    "stock": ["stock", "stock inicial", "cantidad", "existencia"],
+    "moneda": ["moneda", "currency"],
+    "precio": ["precio", "precio unitario", "costo", "valor", "price"],
+    "prom": ["promedio anual", "prom anual", "prom", "consumo anual", "anual"],
+    "url": ["url", "link", "enlace"],
+    "solicitud": ["solicitud", "solicitud compra", "sol compra"],
+}
+
+
+def _row_get(row: dict, key: str):
+    aliases = _COL_ALIASES[key]
+    for k, v in row.items():
+        if _norm(k) in aliases:
+            return v
+    return None
+
+
+@app.post("/import/excel")
+async def import_excel(
+    file: UploadFile = File(...),
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    if not (file.filename or "").lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="Solo se acepta .xlsx / .xls")
+    contents = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+        tmp.write(contents)
+        tmp_path = tmp.name
+    try:
+        wb = openpyxl.load_workbook(tmp_path, data_only=True)
+        preferred = ["Stock", "Insumos", "Insumo", "INSUMOS"]
+        sheet_name = next((s for s in preferred if s in wb.sheetnames), wb.sheetnames[0])
+        ws = wb[sheet_name]
+        all_rows = list(ws.iter_rows(values_only=True))
+        known = {"item", "nombre", "insumo", "producto", "descripcion",
+                 "stock", "stock inicial", "marca", "moneda", "precio",
+                 "referencia", "ref", "codigo", "equipo", "equipo medico",
+                 "ubicacion", "promedio anual", "prom anual"}
+        header_idx = 0
+        for i, row in enumerate(all_rows[:8]):
+            if not row:
+                continue
+            cells = [_norm(v) for v in row if v is not None]
+            matches = sum(1 for c in cells if c in known)
+            if matches >= 2:
+                header_idx = i
+                break
+        rows = all_rows[header_idx:]
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    if not rows or len(rows) < 2:
+        raise HTTPException(status_code=400, detail="El archivo no tiene datos")
+
+    headers = [str(h) if h is not None else "" for h in rows[0]]
+    created = updated = skipped = 0
+    errores = []
+
+    for i, raw in enumerate(rows[1:], start=2):
+        if not raw or all(v is None for v in raw):
+            continue
+        record = dict(zip(headers, raw))
+        nombre = _row_get(record, "nombre")
+        if not nombre or not str(nombre).strip():
+            skipped += 1
+            continue
+        nombre = str(nombre).strip().upper()
+        moneda = (str(_row_get(record, "moneda") or "").strip() or None)
+        if moneda:
+            moneda = moneda.upper()
+        try:
+            stock_v = _row_get(record, "stock")
+            stock = int(float(stock_v)) if stock_v is not None and stock_v != "" else 0
+        except Exception:
+            stock = 0
+        try:
+            precio_v = _row_get(record, "precio")
+            precio = float(precio_v) if precio_v is not None and precio_v != "" else None
+        except Exception:
+            precio = None
+        try:
+            prom_v = _row_get(record, "prom")
+            prom = int(float(prom_v)) if prom_v is not None and prom_v != "" else None
+        except Exception:
+            prom = None
+        try:
+            sol_v = _row_get(record, "solicitud")
+            sol = int(float(sol_v)) if sol_v is not None and sol_v != "" else None
+        except Exception:
+            sol = None
+        ref = _row_get(record, "ref")
+        if ref is None or str(ref).strip() == "":
+            ref = _row_get(record, "url")
+        ref = str(ref).strip() if ref else None
+
+        fields = dict(
+            nombre=nombre,
+            stock=stock,
+            estado="OK" if stock > 0 else "SIN STOCK",
+            equipo_medico=(str(_row_get(record, "equipo") or "").strip() or None),
+            marca=(str(_row_get(record, "marca") or "").strip() or None),
+            referencia=ref,
+            ubicacion=(str(_row_get(record, "ubicacion") or "").strip() or None),
+            prom_anual=prom,
+            solicitud_compra=sol,
+            moneda=moneda,
+            precio_unit_valor=precio,
+        )
+        try:
+            existing = db.query(models.Insumo).filter_by(nombre=nombre).first()
+            if existing:
+                for k, v in fields.items():
+                    setattr(existing, k, v)
+                updated += 1
+            else:
+                db.add(models.Insumo(**fields))
+                created += 1
+        except Exception as e:
+            errores.append({"fila": i, "error": str(e)})
+    db.commit()
+    return {"creados": created, "actualizados": updated, "saltados": skipped, "errores": errores}
+
+
+@app.get("/backup")
+def export_backup(
+    current: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    insumos = [
+        {
+            "id": x.id, "nombre": x.nombre, "stock": x.stock, "stock_minimo": x.stock_minimo,
+            "estado": x.estado, "equipo_medico": x.equipo_medico, "marca": x.marca,
+            "referencia": x.referencia, "ubicacion": x.ubicacion, "prom_anual": x.prom_anual,
+            "solicitud_compra": x.solicitud_compra, "moneda": x.moneda,
+            "precio_original": x.precio_original, "precio_unit_valor": x.precio_unit_valor,
+            "foto_filename": x.foto_filename,
+        }
+        for x in db.query(models.Insumo).order_by(models.Insumo.id).all()
+    ]
+    movs = [
+        {
+            "id": m.id, "fecha": m.fecha.isoformat() if m.fecha else None,
+            "insumo_id": m.insumo_id, "insumo_nombre": m.insumo_nombre,
+            "tipo": m.tipo, "cantidad": m.cantidad, "servicio": m.servicio,
+            "responsable": m.responsable, "paciente": m.paciente, "notas": m.notas,
+            "comprobante": m.comprobante,
+            "comprobante_fecha": m.comprobante_fecha.isoformat() if m.comprobante_fecha else None,
+            "proveedor": m.proveedor, "usuario": m.usuario,
+            "precio_unit_valor": m.precio_unit_valor, "moneda": m.moneda,
+        }
+        for m in db.query(models.Movimiento).order_by(models.Movimiento.fecha).all()
+    ]
+    peds = [_serialize_pedido(p) for p in db.query(models.Pedido).order_by(models.Pedido.fecha).all()]
+    cfg = _config_doc(db).model_dump()
+    return {
+        "version": "1.1",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "insumos": insumos,
+        "movimientos": movs,
+        "pedidos": peds,
+        "config": cfg,
+    }
+
+
+@app.post("/backup")
+def import_backup(
+    payload: dict = Body(...),
+    mode: str = Query("merge", pattern="^(merge|replace)$"),
+    current: models.Usuario = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    if mode == "replace":
+        db.query(models.Movimiento).delete()
+        db.query(models.Pedido).delete()
+        db.query(models.Insumo).delete()
+        db.commit()
+
+    counts = {"insumos_nuevos": 0, "insumos_actualizados": 0,
+              "movimientos": 0, "pedidos": 0}
+
+    for it in payload.get("insumos", []) or []:
+        nombre = (it.get("nombre") or "").strip()
+        if not nombre:
+            continue
+        fields = {k: it.get(k) for k in (
+            "stock", "stock_minimo", "estado", "equipo_medico", "marca", "referencia",
+            "ubicacion", "prom_anual", "solicitud_compra", "moneda", "precio_original",
+            "precio_unit_valor", "foto_filename",
+        )}
+        existing = db.query(models.Insumo).filter_by(nombre=nombre).first()
+        if existing:
+            for k, v in fields.items():
+                if v is not None:
+                    setattr(existing, k, v)
+            counts["insumos_actualizados"] += 1
+        else:
+            db.add(models.Insumo(nombre=nombre, **{k: v for k, v in fields.items() if v is not None}))
+            counts["insumos_nuevos"] += 1
+    db.commit()
+
+    for m in payload.get("movimientos", []) or []:
+        nombre = m.get("insumo_nombre")
+        ins_id = m.get("insumo_id")
+        if not ins_id and nombre:
+            it = db.query(models.Insumo).filter_by(nombre=nombre).first()
+            ins_id = it.id if it else None
+        if not ins_id:
+            continue
+        try:
+            db.add(models.Movimiento(
+                insumo_id=ins_id,
+                insumo_nombre=nombre,
+                tipo=m.get("tipo") or "IN",
+                cantidad=int(m.get("cantidad") or 0),
+                servicio=m.get("servicio"),
+                responsable=m.get("responsable"),
+                paciente=m.get("paciente"),
+                notas=m.get("notas"),
+                usuario=m.get("usuario"),
+                precio_unit_valor=m.get("precio_unit_valor"),
+                moneda=m.get("moneda"),
+                fecha=datetime.fromisoformat(m["fecha"]) if m.get("fecha") else datetime.now(timezone.utc),
+            ))
+            counts["movimientos"] += 1
+        except Exception:
+            pass
+    db.commit()
+
+    for p in payload.get("pedidos", []) or []:
+        items = p.get("items") or []
+        try:
+            db.add(models.Pedido(
+                fecha=datetime.fromisoformat(p["fecha"]) if p.get("fecha") else datetime.now(timezone.utc),
+                items_json=json.dumps(items, default=str),
+                total_usd=float(p.get("total_usd") or 0),
+                total_ars=float(p.get("total_ars") or 0),
+                notas=p.get("notas"),
+            ))
+            counts["pedidos"] += 1
+        except Exception:
+            pass
+    db.commit()
+
+    cfg = payload.get("config")
+    if cfg:
+        for k, v in cfg.items():
+            row = db.get(models.Config, k)
+            if row:
+                row.value = json.dumps(v)
+            else:
+                db.add(models.Config(key=k, value=json.dumps(v)))
+        db.commit()
+
+    return counts

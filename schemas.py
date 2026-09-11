@@ -1,0 +1,234 @@
+"""Pydantic v2 schemas para request/response."""
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+# ---------------- INSUMOS ---------------- #
+class InsumoBase(BaseModel):
+    nombre: str = Field(..., min_length=1)
+    stock: int = 0
+    stock_minimo: int = 1
+    tipo_compra: str | None = None
+    estado: str | None = None
+    equipo_medico: str | None = None
+    marca: str | None = None
+    referencia: str | None = None
+    ubicacion: str | None = None
+    prom_anual: int | None = None
+    solicitud_compra: int | None = None
+    moneda: str | None = None
+    precio_original: str | None = None
+    precio_unit_valor: float | None = None
+    foto_filename: str | None = None
+
+
+class InsumoCreate(InsumoBase):
+    pass
+
+
+class InsumoUpdate(BaseModel):
+    nombre: str | None = None
+    stock: int | None = None
+    stock_minimo: int | None = None
+    tipo_compra: str | None = None
+    estado: str | None = None
+    equipo_medico: str | None = None
+    marca: str | None = None
+    referencia: str | None = None
+    ubicacion: str | None = None
+    prom_anual: int | None = None
+    solicitud_compra: int | None = None
+    moneda: str | None = None
+    precio_original: str | None = None
+    precio_unit_valor: float | None = None
+    foto_filename: str | None = None
+
+
+class Insumo(InsumoBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+# ---------------- MOVIMIENTOS ---------------- #
+class MovimientoCreate(BaseModel):
+    insumo_id: int
+    tipo: str = Field(..., pattern="^(IN|OUT|AJUSTE)$")
+    cantidad: int = Field(..., gt=0)
+    servicio: str | None = None
+    responsable: str | None = None
+    paciente: str | None = None
+    notas: str | None = None  # tambien usado como "motivo"
+    comprobante: str | None = None  # Remito/Factura/OC, ej: "R-A 0001-00012345"
+    comprobante_fecha: datetime | None = None  # fecha del comprobante
+    proveedor: str | None = None
+    fecha: datetime | None = None
+
+
+class MovimientoNested(BaseModel):
+    """Para POST /insumos/{id}/movimientos: el insumo_id viene de la URL."""
+    tipo: str = Field(..., pattern="^(IN|OUT|AJUSTE)$")
+    cantidad: int = Field(..., gt=0)
+    servicio: str | None = None
+    responsable: str | None = None
+    paciente: str | None = None
+    notas: str | None = None  # tambien usado como "motivo"
+    comprobante: str | None = None  # Remito/Factura/OC, ej: "R-A 0001-00012345"
+    comprobante_fecha: datetime | None = None  # fecha del comprobante
+    proveedor: str | None = None
+    fecha: datetime | None = None
+
+
+class MovimientoUpdate(BaseModel):
+    """Edición de un movimiento existente (corrección de errores de carga).
+
+    tipo/cantidad solo se pueden editar si tanto el tipo original como el nuevo
+    son IN u OUT (no AJUSTE) — así el recálculo de stock es siempre reversible.
+    """
+    tipo: str | None = Field(None, pattern="^(IN|OUT|AJUSTE)$")
+    cantidad: int | None = Field(None, ge=0)
+    servicio: str | None = None
+    responsable: str | None = None
+    paciente: str | None = None
+    notas: str | None = None
+    comprobante: str | None = None
+    comprobante_fecha: datetime | None = None
+    proveedor: str | None = None
+    fecha: datetime | None = None
+
+
+class Movimiento(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    fecha: datetime
+    insumo_id: int
+    insumo_nombre: str | None
+    tipo: str
+    cantidad: int
+    servicio: str | None
+    responsable: str | None
+    paciente: str | None
+    notas: str | None
+    comprobante: str | None = None
+    comprobante_fecha: datetime | None = None
+    proveedor: str | None = None
+    stock_before: int | None = None
+    usuario: str | None
+    precio_unit_valor: float | None
+    moneda: str | None
+    created_at: datetime
+
+
+# ---------------- PEDIDOS ---------------- #
+class PedidoItem(BaseModel):
+    insumo_id: int
+    nombre: str
+    marca: str | None = None
+    cantidad: int
+    precio_unit: float | None = None
+    moneda: str | None = None
+    subtotal_usd: float | None = None
+    subtotal_ars: float | None = None
+
+
+class PedidoCreate(BaseModel):
+    items: list[PedidoItem]
+    notas: str | None = None
+    fecha: datetime | None = None
+
+
+class Pedido(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    fecha: datetime
+    items: list[PedidoItem]
+    total_usd: float
+    total_ars: float
+    notas: str | None
+    created_at: datetime
+
+
+# ---------------- ARMARIOS ---------------- #
+class ArmarioBase(BaseModel):
+    letra: str = Field(..., min_length=1, max_length=10)
+    nombre: str | None = None
+
+
+class ArmarioCreate(ArmarioBase):
+    pass
+
+
+class ArmarioUpdate(BaseModel):
+    letra: str | None = Field(None, min_length=1, max_length=10)
+    nombre: str | None = None
+
+
+class Armario(ArmarioBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    foto_filename: str | None = None
+    created_at: datetime
+
+
+# ---------------- CONFIG ---------------- #
+class ConfigDoc(BaseModel):
+    fx_rate: float = 1200.0
+    threshold_pct: int = 20
+    servicios: list[str] = []
+
+
+# ---------------- BACKUP ---------------- #
+class Backup(BaseModel):
+    insumos: list[InsumoBase]
+    movimientos: list[dict[str, Any]] = []
+    pedidos: list[dict[str, Any]] = []
+    config: ConfigDoc | None = None
+    exported_at: datetime
+    version: str = "1.0"
+
+
+# ---------------- AUTH / USUARIOS ---------------- #
+class LoginInput(BaseModel):
+    username: str
+    password: str
+
+
+class GuestLoginInput(BaseModel):
+    """Login sin contraseña para la cuenta general compartida.
+    Se exige nombre y apellido para poder identificar quién hizo cada
+    movimiento aunque haya entrado como invitado."""
+    nombre: str = Field(..., min_length=2)
+    apellido: str = Field(..., min_length=2)
+
+
+class UsuarioCreate(BaseModel):
+    username: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=4)
+    nombre: str | None = None
+    rol: str = Field("usuario", pattern="^(admin|usuario)$")
+    activo: bool = True
+
+
+class UsuarioUpdate(BaseModel):
+    nombre: str | None = None
+    rol: str | None = Field(None, pattern="^(admin|usuario)$")
+    activo: bool | None = None
+    password: str | None = Field(None, min_length=4)
+
+
+class UsuarioOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    username: str
+    nombre: str | None
+    rol: str
+    activo: bool
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UsuarioOut
