@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recalcular Stock Mínimo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+body{background:#f4f6f9;color:#222;min-height:100vh;padding:24px}
+.container{max-width:1100px;margin:0 auto}
+h1{font-size:22px;margin-bottom:4px;color:#0f766e}
+.sub{color:#666;margin-bottom:20px;font-size:14px}
+.card{background:#fff;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+label{display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:4px;margin-top:12px}
+input[type=text],input[type=password],input[type=url]{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px}
+.row{display:flex;gap:16px;flex-wrap:wrap}
+.row>div{flex:1;min-width:220px}
+.checkbox-row{display:flex;align-items:center;gap:8px;margin-top:16px}
+.checkbox-row input{width:18px;height:18px}
+.btn{margin-top:18px;padding:12px 22px;border:0;border-radius:8px;background:#0f766e;color:#fff;font-size:15px;font-weight:600;cursor:pointer}
+.btn:hover{background:#0d5f58}
+.btn:disabled{background:#9ca3af;cursor:not-allowed}
+.msg{margin-top:14px;padding:10px 14px;border-radius:8px;font-size:14px;display:none}
+.msg.error{background:#fee2e2;color:#991b1b;display:block}
+.msg.ok{background:#dcfce7;color:#166534;display:block}
+.msg.info{background:#e0f2fe;color:#075985;display:block}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px}
+.kpi{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:4px solid #0f766e}
+.kpi .label{font-size:11px;color:#777;text-transform:uppercase;letter-spacing:.5px}
+.kpi .value{font-size:24px;font-weight:700;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #eee}
+th{background:#f0fdfa;color:#0f766e;position:sticky;top:0;cursor:pointer;user-select:none}
+tr:hover{background:#fafafa}
+.badge{padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.badge.sube{background:#fee2e2;color:#991b1b}
+.badge.baja{background:#dbeafe;color:#1e40af}
+.badge.igual{background:#f3f4f6;color:#555}
+.badge.sindato{background:#fef3c7;color:#92400e}
+.tablewrap{max-height:600px;overflow:auto;border:1px solid #eee;border-radius:8px}
+.filtros{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+select{padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px}
+.count{font-size:12px;color:#666}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔄 Recalcular Stock Mínimo</h1>
+  <div class="sub">Calcula el stock mínimo sugerido según el consumo real de los últimos 3 años (promedio mensual + margen de seguridad por lead time).</div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>URL de la API</label>
+        <input type="url" id="apiUrl" value="http://localhost:8000">
+      </div>
+      <div>
+        <label>Usuario</label>
+        <input type="text" id="usuario" placeholder="admin">
+      </div>
+      <div>
+        <label>Contraseña</label>
+        <input type="password" id="clave" placeholder="••••••••">
+      </div>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="aplicar">
+      <label style="margin:0" for="aplicar">Aplicar y guardar los cambios (si está destildado, solo simula sin tocar la base)</label>
+    </div>
+    <button class="btn" id="btnCalcular" onclick="calcular()">Calcular</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div id="resultados" style="display:none">
+    <div class="kpis" id="kpis"></div>
+    <div class="filtros">
+      <label style="margin:0">Mostrar:</label>
+      <select id="filtro" onchange="renderTabla()">
+        <option value="todos">Todos</option>
+        <option value="cambia">Solo los que cambian</option>
+        <option value="sindato">Sin datos de consumo</option>
+      </select>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="card" style="padding:0">
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th onclick="ordenar('nombre')">Ítem</th>
+              <th onclick="ordenar('tipo_compra')">Tipo compra</th>
+              <th onclick="ordenar('prom_mensual')">Prom. mensual</th>
+              <th onclick="ordenar('desvio_std_mensual')">Desvío std</th>
+              <th onclick="ordenar('stock_actual')">Stock actual</th>
+              <th onclick="ordenar('stock_minimo_anterior')">Mínimo anterior</th>
+              <th onclick="ordenar('stock_minimo_calculado')">Mínimo calculado</th>
+              <th>Cambio</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let ITEMS = [];
+let ORDEN = {campo: 'stock_minimo_calculado', asc: false};
+
+function setMsg(texto, tipo){
+  const el = document.getElementById('msg');
+  el.className = 'msg ' + tipo;
+  el.textContent = texto;
+}
+
+async function calcular(){
+  const apiUrl = document.getElementById('apiUrl').value.replace(/\/$/, '');
+  const usuario = document.getElementById('usuario').value.trim();
+  const clave = document.getElementById('clave').value;
+  const aplicar = document.getElementById('aplicar').checked;
+  const btn = document.getElementById('btnCalcular');
+
+  if(!usuario || !clave){
+    setMsg('Completá usuario y contraseña.', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  setMsg('Iniciando sesión...', 'info');
+  document.getElementById('resultados').style.display = 'none';
+
+  try{
+    const loginResp = await fetch(apiUrl + '/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: usuario, password: clave})
+    });
+    if(!loginResp.ok){
+      const err = await loginResp.json().catch(()=>({}));
+      throw new Error('Login falló: ' + (err.detail || loginResp.status));
+    }
+    const {access_token} = await loginResp.json();
+
+    setMsg(aplicar ? 'Calculando y GUARDANDO cambios...' : 'Calculando (simulación, sin guardar)...', 'info');
+
+    const calcResp = await fetch(apiUrl + '/insumos/recalcular-stock-minimo?aplicar=' + aplicar, {
+      method: 'POST',
+      headers: {'Authorization': 'Bearer ' + access_token}
+    });
+    if(!calcResp.ok){
+      const err = await calcResp.json().catch(()=>({}));
+      throw new Error('Error al calcular: ' + (err.detail || calcResp.status));
+    }
+    const data = await calcResp.json();
+    ITEMS = data.items || [];
+
+    setMsg(aplicar
+      ? `Listo — se guardaron los cambios en ${ITEMS.filter(i=>i.stock_minimo_calculado!==null).length} insumos.`
+      : `Simulación lista — no se guardó nada todavía. Tildá "Aplicar" y volvé a calcular cuando estés conforme.`,
+      'ok');
+
+    mostrarResultados();
+  }catch(e){
+    setMsg(e.message || String(e), 'error');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function mostrarResultados(){
+  document.getElementById('resultados').style.display = 'block';
+  const total = ITEMS.length;
+  const sinDato = ITEMS.filter(i => i.stock_minimo_calculado === null).length;
+  const cambian = ITEMS.filter(i => i.stock_minimo_calculado !== null && i.stock_minimo_calculado !== i.stock_minimo_anterior).length;
+  const suben = ITEMS.filter(i => i.stock_minimo_calculado !== null && i.stock_minimo_calculado > i.stock_minimo_anterior).length;
+  const bajan = ITEMS.filter(i => i.stock_minimo_calculado !== null && i.stock_minimo_calculado < i.stock_minimo_anterior).length;
+
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><div class="label">Total insumos</div><div class="value">${total}</div></div>
+    <div class="kpi"><div class="label">Cambian de valor</div><div class="value">${cambian}</div></div>
+    <div class="kpi"><div class="label">Suben</div><div class="value">${suben}</div></div>
+    <div class="kpi"><div class="label">Bajan</div><div class="value">${bajan}</div></div>
+    <div class="kpi"><div class="label">Sin datos de consumo</div><div class="value">${sinDato}</div></div>
+  `;
+  renderTabla();
+}
+
+function ordenar(campo){
+  if(ORDEN.campo === campo) ORDEN.asc = !ORDEN.asc;
+  else { ORDEN.campo = campo; ORDEN.asc = true; }
+  renderTabla();
+}
+
+function renderTabla(){
+  const filtro = document.getElementById('filtro').value;
+  let filtrados = ITEMS.slice();
+  if(filtro === 'cambia'){
+    filtrados = filtrados.filter(i => i.stock_minimo_calculado !== null && i.stock_minimo_calculado !== i.stock_minimo_anterior);
+  }else if(filtro === 'sindato'){
+    filtrados = filtrados.filter(i => i.stock_minimo_calculado === null);
+  }
+
+  filtrados.sort((a,b)=>{
+    let va = a[ORDEN.campo], vb = b[ORDEN.campo];
+    if(va === null || va === undefined) va = -Infinity;
+    if(vb === null || vb === undefined) vb = -Infinity;
+    if(typeof va === 'string') return ORDEN.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return ORDEN.asc ? va - vb : vb - va;
+  });
+
+  document.getElementById('count').textContent = `${filtrados.length} de ${ITEMS.length} insumos`;
+
+  document.getElementById('tbody').innerHTML = filtrados.map(i=>{
+    let badge = '';
+    if(i.stock_minimo_calculado === null){
+      badge = '<span class="badge sindato">sin consumo</span>';
+    }else if(i.stock_minimo_calculado > i.stock_minimo_anterior){
+      badge = `<span class="badge sube">↑ +${i.stock_minimo_calculado - i.stock_minimo_anterior}</span>`;
+    }else if(i.stock_minimo_calculado < i.stock_minimo_anterior){
+      badge = `<span class="badge baja">↓ ${i.stock_minimo_calculado - i.stock_minimo_anterior}</span>`;
+    }else{
+      badge = '<span class="badge igual">sin cambio</span>';
+    }
+    return `<tr>
+      <td>${i.nombre}</td>
+      <td>${i.tipo_compra}</td>
+      <td>${i.prom_mensual}</td>
+      <td>${i.desvio_std_mensual}</td>
+      <td>${i.stock_actual}</td>
+      <td>${i.stock_minimo_anterior}</td>
+      <td><b>${i.stock_minimo_calculado === null ? '—' : i.stock_minimo_calculado}</b></td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+}
+</script>
+</body>
+</html>

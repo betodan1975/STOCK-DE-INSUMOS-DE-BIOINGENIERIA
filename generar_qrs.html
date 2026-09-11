@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generar QR - Stock de Insumos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+body{background:#f4f6f9;color:#222;padding:24px}
+.container{max-width:1000px;margin:0 auto}
+h1{font-size:22px;color:#0f766e;margin-bottom:6px}
+.sub{color:#666;font-size:14px;margin-bottom:20px}
+.card{background:#fff;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:4px}
+input{width:100%;max-width:320px;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px}
+.btn{margin-top:14px;padding:10px 20px;border:0;border-radius:8px;background:#0f766e;color:#fff;font-weight:600;cursor:pointer;font-size:14px}
+.btn:hover{background:#0d5f58}
+.help{font-size:12px;color:#888;margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.qrcard{background:#fff;border-radius:12px;padding:16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.08);page-break-inside:avoid}
+.qrcard h3{font-size:15px;color:#0f766e;margin-bottom:10px}
+.qrcard .qrbox{display:flex;justify-content:center;margin-bottom:8px;overflow:hidden}
+.qrcard .qrbox canvas, .qrcard .qrbox img{max-width:100%;height:auto}
+.qrcard .url{font-size:10px;color:#999;word-break:break-all;margin-bottom:10px}
+.qrcard .btn-descargar{display:inline-block;padding:6px 14px;border-radius:6px;background:#f0fdfa;color:#0f766e;font-size:12px;font-weight:600;text-decoration:none;border:1px solid #99d8ce;cursor:pointer}
+.qrcard .btn-descargar:hover{background:#dcfbf5}
+.section-title{font-size:16px;font-weight:700;margin:24px 0 12px;color:#333}
+@media print{
+  .no-print{display:none}
+  .card{box-shadow:none;border:1px solid #ddd}
+  .qrcard{box-shadow:none;border:1px solid #ccc}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1 class="no-print">🏷️ Generar QR — Stock de Insumos</h1>
+  <div class="sub no-print">Genera un QR por cada armario (M a T) y uno para las alertas de stock bajo.</div>
+
+  <div class="card no-print">
+    <label>IP de esta PC en la red del hospital</label>
+    <input type="text" id="ip" placeholder="ej: 192.168.1.50">
+    <div class="help">
+      La conseguís así: en esta PC, abrí el Símbolo del sistema (buscá "cmd" en el menú de inicio),
+      escribí <code>ipconfig</code> y Enter. Buscá el número que dice "Dirección IPv4" (algo como 192.168.x.x).
+    </div>
+    <label style="margin-top:14px">Letras de armarios (separadas por coma)</label>
+    <input type="text" id="letras" value="M,N,O,P,Q,R,S,T">
+    <label style="margin-top:14px">Tamaño del QR (píxeles — subilo si tu etiqueta es grande, bajalo si es chica)</label>
+    <input type="number" id="tamano" value="300" min="100" max="1000" step="50">
+    <button class="btn" onclick="generar()">Generar QR</button>
+    <button class="btn" style="background:#555" onclick="window.print()">Imprimir esta página</button>
+    <button class="btn" style="background:#555" onclick="descargarTodos()">Descargar todos (uno por uno)</button>
+  </div>
+
+  <div id="resultado"></div>
+</div>
+
+<script>
+let ULTIMAS_QR = []; // {id, filename} para "descargar todos"
+
+function generar(){
+  const ip = document.getElementById('ip').value.trim();
+  const letras = document.getElementById('letras').value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+  const tamano = parseInt(document.getElementById('tamano').value, 10) || 300;
+  if(!ip){ alert('Poné la IP de la PC primero.'); return; }
+
+  const base = `http://${ip}:8000/static`;
+  const resultado = document.getElementById('resultado');
+  resultado.innerHTML = `
+    <div class="section-title">QR por armario</div>
+    <div class="grid" id="grid-armarios"></div>
+    <div class="section-title">QR fijo de alertas</div>
+    <div class="grid" id="grid-alertas"></div>
+  `;
+  ULTIMAS_QR = [];
+
+  const gridArmarios = document.getElementById('grid-armarios');
+  letras.forEach(letra => {
+    const url = `${base}/publico_armario.html?letra=${letra}`;
+    const qrId = `qr-arm-${letra}`;
+    const filename = `armario_${letra}.png`;
+    const div = document.createElement('div');
+    div.className = 'qrcard';
+    div.innerHTML = `<h3>Armario ${letra}</h3><div class="qrbox" id="${qrId}"></div><div class="url">${url}</div><a class="btn-descargar no-print" onclick="descargarQR('${qrId}','${filename}')">⬇ Descargar PNG</a>`;
+    gridArmarios.appendChild(div);
+    new QRCode(document.getElementById(qrId), {text: url, width: tamano, height: tamano});
+    ULTIMAS_QR.push({id: qrId, filename});
+  });
+
+  const urlAlertas = `${base}/publico_alertas.html`;
+  const qrIdAlertas = 'qr-alertas';
+  const filenameAlertas = 'alertas_stock.png';
+  const gridAlertas = document.getElementById('grid-alertas');
+  const divA = document.createElement('div');
+  divA.className = 'qrcard';
+  divA.innerHTML = `<h3>Alertas de stock</h3><div class="qrbox" id="${qrIdAlertas}"></div><div class="url">${urlAlertas}</div><a class="btn-descargar no-print" onclick="descargarQR('${qrIdAlertas}','${filenameAlertas}')">⬇ Descargar PNG</a>`;
+  gridAlertas.appendChild(divA);
+  new QRCode(document.getElementById(qrIdAlertas), {text: urlAlertas, width: tamano, height: tamano});
+  ULTIMAS_QR.push({id: qrIdAlertas, filename: filenameAlertas});
+}
+
+function descargarQR(qrId, filename){
+  const canvas = document.querySelector(`#${qrId} canvas`);
+  if(!canvas){ alert('No se pudo generar la imagen. Probá de nuevo.'); return; }
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function descargarTodos(){
+  if(ULTIMAS_QR.length === 0){ alert('Primero generá los QR.'); return; }
+  // Descarga de a una, con una pequeña pausa entre cada una para que el
+  // navegador no las bloquee como si fuera spam de descargas.
+  ULTIMAS_QR.forEach((q, i) => {
+    setTimeout(() => descargarQR(q.id, q.filename), i * 400);
+  });
+}
+</script>
+</body>
+</html>
